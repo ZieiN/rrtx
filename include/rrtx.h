@@ -68,7 +68,9 @@ public:
     set<Node *> orphans_;
     set<Node *> deletedNodes_;
     priority_queue<pair<pair<double, double>, Node *>> qRewiring_;
-
+    bool flagPlanNearOldPath;
+    vector<Point> finalPath;
+    bool firstPathFound;
 
     bool extend(Node &v);
     list<Node *> near(Node &v);
@@ -76,7 +78,7 @@ public:
     static double distanceFunction(Point &v1, Point &v2);
     double distanceBySteerFunction(Point &v1, Point &v2);
     bool steer(Point v1, Point &v2);
-    void steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory);
+    void steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, int timeSteps);
     void updateMap(Map &mp);
     void updateMapFromFile(string fileName);
     void addAllChildren(Node *vItr);
@@ -103,12 +105,16 @@ public:
     void checkForAppearedObstacles();
     void moveObstacles(string fileName, int shift);
 
-    vector<Point> getPath();
+    void updatePath();
     bool achievedGoalState(Node);
 
     void drawMap(string fileName);
 
     void addDynamicObstacles(string fileName, int shift);
+
+    void pruneTree();
+
+    void resetTreeExceptPath();
 };
 
 #endif //RRTX_RRTX_H

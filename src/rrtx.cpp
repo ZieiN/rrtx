@@ -15,12 +15,16 @@ RRTX::RRTX() {
     mp_ = Map();
     nodes_.clear();
     vBotIsAdded_ = false;
+    flagPlanNearOldPath = false;
+    firstPathFound = false;
 }
 
 RRTX::RRTX(Point start, Point goal) {
     mp_ = Map();
     nodes_.clear();
     vBotIsAdded_ = false;
+    flagPlanNearOldPath = false;
+    firstPathFound = false;
     startPoint_ = start;
     goal_ = goal;
     initializeTree();
@@ -41,14 +45,27 @@ Point RRTX::randomNode() {
 //    return Point(x, y, theta);
      random_device rd;
      mt19937 mt(rd());
-     uniform_real_distribution<double> randHeight(0, MX_HEIGHT);
-    uniform_real_distribution<double> randWidth(0, MX_WIDTH);
-    uniform_real_distribution<double> randOrientation(0, 2*M_PI);
-     uniform_real_distribution<double> randForStartPoint(0, 1);
-     if(randForStartPoint(mt)<probability_SAMPLE_START_NODE){
-         return startPoint_;
+     if(flagPlanNearOldPath){
+         uniform_int_distribution<int> randPntPath(0,(int)finalPath.size()-1);
+         uniform_real_distribution<double> randAng(0, 2*M_PI);
+         uniform_real_distribution<double> randRadius(0, DELTA2);
+         int id = randPntPath(mt);
+         double rad = randRadius(mt);
+         double ang = randAng(mt);
+         double x = finalPath[id].x_+rad*cos(ang);
+         double y = finalPath[id].y_+rad*sin(ang);
+         return Point(x, y, ang);
      }
-     return Point(randWidth(mt), randHeight(mt), randOrientation(mt));
+     else {
+         uniform_real_distribution<double> randHeight(0, MX_HEIGHT);
+         uniform_real_distribution<double> randWidth(0, MX_WIDTH);
+         uniform_real_distribution<double> randOrientation(0, 2 * M_PI);
+         uniform_real_distribution<double> randForStartPoint(0, 1);
+         if (randForStartPoint(mt) < probability_SAMPLE_START_NODE) {
+             return startPoint_;
+         }
+         return Point(randWidth(mt), randHeight(mt), randOrientation(mt));
+     }
 }
 
 void RRTX::shrinkingBallRadius() {
@@ -257,9 +274,9 @@ void RRTX::drawSolution(string fileName) {
     ofstream out;
     out.open(fileName.c_str());
     if (vBotIsAdded_) {
-        auto v = getPath();
-        for(int i=0; i+1<v.size(); ++i){
-            out<<v[i].x_<<" "<<v[i].y_<<" "<<v[i+1].x_<<" "<<v[i+1].y_<<endl;
+        updatePath();
+        for(int i=0; i+1<finalPath.size(); ++i){
+            out<<finalPath[i].x_<<" "<<finalPath[i].y_<<" "<<finalPath[i+1].x_<<" "<<finalPath[i+1].y_<<endl;
         }
     }
     out.close();
@@ -542,7 +559,8 @@ bool RRTX::search() {
                 if(achievedGoalState(it)){
                     vBotIsAdded_ = true;
                     vBot_ = it.selfItr_;
-                    break;
+                    updatePath();
+                    return true;
                 }
             }
         }
@@ -572,6 +590,12 @@ bool RRTX::search() {
             if(achievedGoalState(v)){
                 vBotIsAdded_ = true;
                 vBot_ = v.selfItr_;
+                updatePath();
+                if(!firstPathFound){
+                    resetTreeExceptPath();
+                    firstPathFound = true;
+                }
+                flagPlanNearOldPath = true;
             }
             rewireNeighbors(v.selfItr_);
             reduceInconsistency();
@@ -579,8 +603,7 @@ bool RRTX::search() {
         diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
     }
     cerr << "Elapsed time:" << diffTime/1000.0 << "ms" << endl;
-    check();
-    return true;
+    return vBotIsAdded_;
 }
 
 bool updateRobot() {
@@ -615,7 +638,6 @@ Node *RRTX::nearest(Node &v) {
 void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY) {
     auto startTime = high_resolution_clock::now();
     shiftTree(-shiftDeltaX, -shiftDeltaY);
-    check();
     shiftGoal(-shiftDeltaX, -shiftDeltaY);
     for (auto it = nodes_.begin(); it != nodes_.end();) {
         if (isOut(it->pnt_)) {
@@ -632,7 +654,6 @@ void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY) {
             vBot_ = NULL;
         }
     }
-    check();
     propagateDescendants();
     reduceInconsistency();
     double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
@@ -650,12 +671,10 @@ void RRTX::drawTree(string fileName) {
     for (auto &it:nodes_) {
         if (it.parent_ != NULL){
             vector<Point> v;
-            steerTrajectory(it.pnt_, it.parent_->pnt_, v);
+            steerTrajectory(it.pnt_, it.parent_->pnt_, v, 20);
             for(int i=0; i+1<v.size(); i+=1){
                 out<<v[i].x_<<" "<<v[i].y_<<" "<<v[i+1].x_<<" "<<v[i+1].y_<<endl;
             }
-//            out << (it.pnt_.x_) << " " << (it.pnt_.y_) << " " << it.parent_->pnt_.x_ << " " << it.parent_->pnt_.y_
-//                << endl;
         }
         else{
             out << it.pnt_.x_<<" "<<it.pnt_.y_<<endl;
@@ -667,15 +686,10 @@ void RRTX::drawTree(string fileName) {
 void RRTX::updateMap(Map &mp) {
     mp_ = mp;
     checkForDisappearedObstacles();
-    check();
     reduceInconsistency();
-    check();
     checkForAppearedObstacles();
-    check();
     propagateDescendants();
-    check();
     reduceInconsistency();
-    check();
 }
 
 void RRTX::checkForDisappearedObstacles() {
@@ -807,11 +821,8 @@ void RRTX::moveObstacles(string fileName, int shift) {
     checkForDisappearedObstacles();
     reduceInconsistency();
     checkForAppearedObstacles();
-    check();
     propagateDescendants();
-    check();
     reduceInconsistency();
-    check();
 }
 
 void RRTX::drawMap(string fileName) {
@@ -863,11 +874,8 @@ void RRTX::addDynamicObstacles(string fileName, int shift) {
     checkForDisappearedObstacles();
     reduceInconsistency();
     checkForAppearedObstacles();
-    check();
     propagateDescendants();
-    check();
     reduceInconsistency();
-    check();
 }
 
 bool RRTX::achievedGoalState(Node v) {
@@ -885,22 +893,21 @@ double RRTX::distanceBySteerFunction(Point &v1, Point &v2) {
     return d.distance(&v1, &v2);
 }
 
-void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory) {
+void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, int timeSteps) {
     Dubins d(MIN_RADIUS, 0);
     auto path=d.dubins(&v1, &v2);
     vector<Point> v;
-    for(int i=1; i<=100; ++i){
+    for(int i=1; i<=timeSteps; ++i){
         Point p;
-        d.interpolate(&v1, path, (double)i/100.0, &p);
+        d.interpolate(&v1, path, (double)i/timeSteps, &p);
         trajectory.push_back(p);
     }
 }
 
-vector<Point> RRTX::getPath() {
-    vector<Point> finalPath;
+void RRTX::updatePath() {
+    finalPath.clear();
     if (vBotIsAdded_) {
         auto it = vBot_;
-        assert(it != NULL);
         vector<Point> path;
         while (it->parent_ != it->selfItr_) {
             path.push_back(Point(it->pnt_.x_, it->pnt_.y_, it->pnt_.theta_));
@@ -914,13 +921,44 @@ vector<Point> RRTX::getPath() {
         for(int i=0; i+1<path.size(); ++i){
             auto it = path[i], it1 = path[i+1];
             vector<Point> v;
-            steerTrajectory(it, it1, v);
+            steerTrajectory(it, it1, v, 50);
             for(auto it:v){
                 finalPath.push_back(it);
             }
         }
     }
-    return finalPath;
+    return;
+}
+
+void RRTX::pruneTree() {
+//    for(auto it:nodes_){
+//        if(distan)
+//    }
+}
+
+void RRTX::resetTreeExceptPath() {
+    set<Node *>  st;
+    if (vBotIsAdded_) {
+        auto it = vBot_;
+        while (it->parent_ != it->selfItr_) {
+            st.insert(it->selfItr_);
+            it = it->parent_;
+        }
+        st.insert(it->selfItr_);
+    }
+    for(auto it = nodes_.begin(); it!=nodes_.end();){
+        if(st.find(it->selfItr_)==st.end()){
+            auto it1 = it;
+            ++it1;
+            deleteNode(it);
+            it = it1;
+        }
+        else{
+            ++it;
+        }
+    }
+    propagateDescendants();
+    reduceInconsistency();
 }
 
 

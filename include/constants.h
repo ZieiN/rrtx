@@ -18,6 +18,7 @@ const double EPS_GOAL = 1;
 const double MX_HEIGHT = 600;
 const double MX_WIDTH = 600;
 const double DELTA = 60;
+const double DELTA2 = 60;
 const double EPS = 0;
 const double EPS_DOUBLE = 1e-9;
 const double EPS_ORIENTATION_ANGLE = 0.1;

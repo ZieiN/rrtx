@@ -56,10 +56,10 @@ for imageNm in range(1,4):
                         gg.append(a[1])
             f.close()
 
-            pl.plot(b, c, 'b.')
-            pl.plot(d, e, 'b.')
+            # pl.plot(b, c, 'b.')
+            # pl.plot(d, e, 'b.')
             pl.plot([b, d], [c, e], 'y-')
-            pl.plot(ff, gg, '.', markerfacecolor='white', markeredgecolor='blue', markersize=12)
+            # pl.plot(ff, gg, '.', markerfacecolor='white', markeredgecolor='blue', markersize=12)
 
             ff = []
             gg = []
@@ -73,7 +73,7 @@ for imageNm in range(1,4):
                     gg.append(a[3])
             f.close()
 
-            pl.plot(ff, gg, 'g.', linewidth=9)
+            # pl.plot(ff, gg, 'g.', linewidth=9)
 
             imgx = []
             imgy = []
@@ -96,7 +96,7 @@ for imageNm in range(1,4):
             pl.plot(ndX[id], ndY[id], 'r.', markersize=16)
             pl.title("Test-" + str(id)+"-at time:"+str(id1)+",Planning Time:"+str(times1[id*numOfSeconds+id1]/1000.0)+
                      "ms\nRewiring Time:"+str(times[id*numOfSeconds+id1]/1000.0)+"ms", fontsize=20)
-            print("saving..")
+            print("map:",imageNum,", test:",id,", time:",id1, "saving..")
             F = pl.gcf()
             Size = F.get_size_inches()
             F.set_size_inches(Size[0] * 3, Size[1] * 3, forward=True)
