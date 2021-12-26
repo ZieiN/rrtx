@@ -15,16 +15,18 @@ RRTX::RRTX() {
     mp_ = Map();
     nodes_.clear();
     vBotIsAdded_ = false;
+    updatePathNeeded = false;
     flagPlanNearOldPath = false;
-    firstPathFound = false;
+    guidePathDefined = false;
 }
 
 RRTX::RRTX(Point start, Point goal) {
     mp_ = Map();
     nodes_.clear();
     vBotIsAdded_ = false;
+    updatePathNeeded = false;
     flagPlanNearOldPath = false;
-    firstPathFound = false;
+    guidePathDefined = false;
     startPoint_ = start;
     goal_ = goal;
     initializeTree();
@@ -45,15 +47,19 @@ Point RRTX::randomNode() {
 //    return Point(x, y, theta);
      random_device rd;
      mt19937 mt(rd());
-     if(flagPlanNearOldPath){
-         uniform_int_distribution<int> randPntPath(0,(int)finalPath.size()-1);
+    uniform_real_distribution<double> randForStartPoint(0, 1);
+    if (randForStartPoint(mt) < probability_SAMPLE_START_NODE) {
+        return startPoint_;
+    }
+     if(guidePathDefined){
+         uniform_int_distribution<int> randPntPath(0,(int)guidePath.size()-1);
          uniform_real_distribution<double> randAng(0, 2*M_PI);
          uniform_real_distribution<double> randRadius(0, DELTA2);
          int id = randPntPath(mt);
          double rad = randRadius(mt);
          double ang = randAng(mt);
-         double x = finalPath[id].x_+rad*cos(ang);
-         double y = finalPath[id].y_+rad*sin(ang);
+         double x = guidePath[id].x_+rad*cos(ang);
+         double y = guidePath[id].y_+rad*sin(ang);
          return Point(x, y, ang);
      }
      else {
@@ -61,9 +67,6 @@ Point RRTX::randomNode() {
          uniform_real_distribution<double> randWidth(0, MX_WIDTH);
          uniform_real_distribution<double> randOrientation(0, 2 * M_PI);
          uniform_real_distribution<double> randForStartPoint(0, 1);
-         if (randForStartPoint(mt) < probability_SAMPLE_START_NODE) {
-             return startPoint_;
-         }
          return Point(randWidth(mt), randHeight(mt), randOrientation(mt));
      }
 }
@@ -251,6 +254,7 @@ void RRTX::propagateDescendants() {
         if (vBotIsAdded_) {
             if (vBot_ == it) {
                 vBotIsAdded_ = false;
+                updatePathNeeded = true;
             }
         }
     }
@@ -273,11 +277,9 @@ void RRTX::propagateDescendants() {
 void RRTX::drawSolution(string fileName) {
     ofstream out;
     out.open(fileName.c_str());
-    if (vBotIsAdded_) {
-        updatePath();
-        for(int i=0; i+1<finalPath.size(); ++i){
-            out<<finalPath[i].x_<<" "<<finalPath[i].y_<<" "<<finalPath[i+1].x_<<" "<<finalPath[i+1].y_<<endl;
-        }
+    for(int i=0; i+1<finalPath.size(); ++i){
+//        assert(mp_.cellIsObstacle(finalPath[i].x_, finalPath[i].y_)==0);
+        out<<finalPath[i].x_<<" "<<finalPath[i].y_<<" "<<finalPath[i+1].x_<<" "<<finalPath[i+1].y_<<endl;
     }
     out.close();
 }
@@ -373,6 +375,7 @@ void RRTX::rewireNeighbors(Node* &vItr) {
                 it->parent_->children_.insert(it->selfItr_);
                 if (hypot(it->pnt_.x_ - startPoint_.x_, it->pnt_.y_ - startPoint_.y_) < EPS_DOUBLE) {
                     vBotIsAdded_ = true;
+                    updatePathNeeded = true;
                     vBot_ = it->selfItr_;
                 }
                 if (it->g_ - it->lmc_ > EPS) {
@@ -391,6 +394,7 @@ void RRTX::rewireNeighbors(Node* &vItr) {
                 it->parent_->children_.insert(it->selfItr_);
                 if (hypot(it->pnt_.x_ - startPoint_.x_, it->pnt_.y_ - startPoint_.y_) < EPS_DOUBLE) {
                     vBotIsAdded_ = true;
+                    updatePathNeeded = true;
                     vBot_ = it->selfItr_;
                 }
                 if (it->g_ - it->lmc_ > EPS) {
@@ -520,6 +524,7 @@ void RRTX::deleteNode(list<Node>::iterator &pntNode) {
         if(vBot_==pntNode->selfItr_){
             vBot_ = NULL;
             vBotIsAdded_ = false;
+            updatePathNeeded = true;
         }
     }
     deletedNodes_.insert(pntNode->selfItr_);
@@ -537,8 +542,11 @@ void RRTX::shiftTree(double shiftDeltaX, double shiftDeltaY) {
 
 void RRTX::initializeTree() {
     nodes_.clear();
+    deletedNodes_.clear();
+    orphans_.clear();
     Node goalNode = Node(goal_, 0, 0, NULL, NULL);
     vBotIsAdded_ = false;
+    updatePathNeeded = true;
     nodes_.push_back(goalNode);
     nodes_.begin()->selfItr_ = nodes_.begin()->parent_ = &(*nodes_.begin());
     nodes_.begin()->children_.insert(nodes_.begin()->selfItr_);
@@ -546,7 +554,6 @@ void RRTX::initializeTree() {
     nodes_.begin()->NMinusR_.insert(nodes_.begin()->selfItr_);
     nodes_.begin()->NPlusR_.insert(nodes_.begin()->selfItr_);
     nodes_.begin()->NPlus0_.insert(nodes_.begin()->selfItr_);
-    assert(&(*nodes_.begin()) == nodes_.begin()->selfItr_);
     while (!qRewiring_.empty()) {
         qRewiring_.pop();
     }
@@ -556,7 +563,7 @@ bool RRTX::search() {
     if(!vBotIsAdded_) {
         for (auto &it: nodes_) {
             if(it.lmc_ < INF) {
-                if(achievedGoalState(it)){
+                if(achievedStartState(it)){
                     vBotIsAdded_ = true;
                     vBot_ = it.selfItr_;
                     updatePath();
@@ -587,18 +594,23 @@ bool RRTX::search() {
         }
         ++cnt;
         if (flagAdded) {
-            if(achievedGoalState(v)){
-                vBotIsAdded_ = true;
-                vBot_ = v.selfItr_;
-                updatePath();
-                if(!firstPathFound){
-                    resetTreeExceptPath();
-                    firstPathFound = true;
-                }
-                flagPlanNearOldPath = true;
-            }
             rewireNeighbors(v.selfItr_);
             reduceInconsistency();
+            if(achievedStartState(v)){
+                vBotIsAdded_ = true;
+                vBot_ = v.selfItr_;
+                updatePathNeeded = true;
+                if(!guidePathDefined){
+                    updatePath();
+                    resetTreeFillGuidePath();
+                    guidePathDefined = true;
+                    cout<<"guide set on "<<finalPath.size()<<" "<<vBotIsAdded_<<endl;
+                }
+            }
+        }
+        if(updatePathNeeded){
+            updatePath();
+            updatePathNeeded = false;
         }
         diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
     }
@@ -635,10 +647,12 @@ Node *RRTX::nearest(Node &v) {
     return ans;
 }
 
-void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY) {
+void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY, double newTheta) {
     auto startTime = high_resolution_clock::now();
     shiftTree(-shiftDeltaX, -shiftDeltaY);
     shiftGoal(-shiftDeltaX, -shiftDeltaY);
+    startPoint_.theta_=newTheta;
+    updatePathNeeded = true;
     for (auto it = nodes_.begin(); it != nodes_.end();) {
         if (isOut(it->pnt_)) {
             auto it1 = it;
@@ -651,6 +665,7 @@ void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY) {
     if (vBotIsAdded_) {
         if (hypot(vBot_->pnt_.x_ - startPoint_.x_, vBot_->pnt_.y_ - startPoint_.y_) > EPS_DOUBLE) {
             vBotIsAdded_ = false;
+            updatePathNeeded = true;
             vBot_ = NULL;
         }
     }
@@ -838,7 +853,7 @@ void RRTX::drawMap(string fileName) {
     out.close();
 }
 
-void RRTX::addDynamicObstacles(string fileName, int shift) {
+void RRTX::addDynamicObstacles(string fileName, int shift, double shX, double shY) {
     int dx[8] = {1, 1, 1, -1, -1, -1, 0, 0},
             dy[8] = {0, 1, -1, 0, 1, -1, 1, -1};
     srand(0);
@@ -870,7 +885,17 @@ void RRTX::addDynamicObstacles(string fileName, int shift) {
             }
         }
     }
-    mp_ = mp2;
+    for(int i=0; i<mp_.getHeight(); ++i){
+        for(int j=0; j<mp_.getWidth(); ++j){
+            int x = j+shX;
+            int y = (int)mp_.getHeight()-1-i+shY;
+            if(mp2.isIn(x, y) && mp2.cellIsObstacle(x, y))
+                mp_.setCell(i, j, 1);
+            else
+                mp_.setCell(i, j, 0);
+        }
+    }
+//    mp_ = mp2;
     checkForDisappearedObstacles();
     reduceInconsistency();
     checkForAppearedObstacles();
@@ -878,7 +903,7 @@ void RRTX::addDynamicObstacles(string fileName, int shift) {
     reduceInconsistency();
 }
 
-bool RRTX::achievedGoalState(Node v) {
+bool RRTX::achievedStartState(Node v) {
     // Assuming both angles in [0, 2*PI] format.
     double diffAngle = abs(v.pnt_.theta_ - startPoint_.theta_);
     diffAngle = min(diffAngle, 2*M_PI - diffAngle);
@@ -923,6 +948,7 @@ void RRTX::updatePath() {
             vector<Point> v;
             steerTrajectory(it, it1, v, 50);
             for(auto it:v){
+//                assert(mp_.cellIsObstacle(it.x_, it.y_)==0);
                 finalPath.push_back(it);
             }
         }
@@ -930,35 +956,14 @@ void RRTX::updatePath() {
     return;
 }
 
-void RRTX::pruneTree() {
-//    for(auto it:nodes_){
-//        if(distan)
-//    }
-}
 
-void RRTX::resetTreeExceptPath() {
-    set<Node *>  st;
-    if (vBotIsAdded_) {
-        auto it = vBot_;
-        while (it->parent_ != it->selfItr_) {
-            st.insert(it->selfItr_);
-            it = it->parent_;
-        }
-        st.insert(it->selfItr_);
+void RRTX::resetTreeFillGuidePath() {
+    guidePath.clear();
+    for(auto it:finalPath){
+        guidePath.push_back(it);
     }
-    for(auto it = nodes_.begin(); it!=nodes_.end();){
-        if(st.find(it->selfItr_)==st.end()){
-            auto it1 = it;
-            ++it1;
-            deleteNode(it);
-            it = it1;
-        }
-        else{
-            ++it;
-        }
-    }
-    propagateDescendants();
-    reduceInconsistency();
+    finalPath.clear();
+    initializeTree();
 }
 
 

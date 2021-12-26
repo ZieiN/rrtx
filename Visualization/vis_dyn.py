@@ -29,10 +29,18 @@ for imageNm in range(1,4):
             times1.append(a[1])
     f.close()
 
-    numOfSeconds = 50
+    numOfSeconds = 150
     numOfTests = 20
 
-    for id in range(numOfTests):
+    for id in range(1, numOfTests):
+        shiftsX = []
+        shiftsY = []
+        with open('../output/map' + imageNum + '/Dynamics/shifts-'+str(id)+'.txt') as f:
+            for line in f:
+                a = [float(i) for i in line.split()]
+                shiftsX.append(a[0])
+                shiftsY.append(a[1])
+            f.close()
         for id1 in range(numOfSeconds):
             pl.clf()
             pl.axis('equal')
@@ -93,7 +101,7 @@ for imageNm in range(1,4):
             pl.plot(imgx, imgy, 'k.')
 
             pl.plot(stX[id], stY[id], 'm.', markersize=16)
-            pl.plot(ndX[id], ndY[id], 'r.', markersize=16)
+            pl.plot(ndX[id]-shiftsX[id1], ndY[id]-shiftsY[id1], 'r.', markersize=16)
             pl.title("Test-" + str(id)+"-at time:"+str(id1)+",Planning Time:"+str(times1[id*numOfSeconds+id1]/1000.0)+
                      "ms\nRewiring Time:"+str(times[id*numOfSeconds+id1]/1000.0)+"ms", fontsize=20)
             print("map:",imageNum,", test:",id,", time:",id1, "saving..")

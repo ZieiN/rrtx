@@ -69,8 +69,10 @@ public:
     set<Node *> deletedNodes_;
     priority_queue<pair<pair<double, double>, Node *>> qRewiring_;
     bool flagPlanNearOldPath;
+    vector<Point> guidePath;
     vector<Point> finalPath;
-    bool firstPathFound;
+    bool updatePathNeeded;
+    bool guidePathDefined;
 
     bool extend(Node &v);
     list<Node *> near(Node &v);
@@ -99,22 +101,20 @@ public:
     void drawSolution(string fileName);
     void drawTree(string fileName);
     void check();
-    void moveRobot(double shiftDeltaX, double shiftDeltaY);
+    void moveRobot(double shiftDeltaX, double shiftDeltaY, double newTheta);
     void shiftGoal(double shiftDeltaX, double shiftDeltaY);
     void checkForDisappearedObstacles();
     void checkForAppearedObstacles();
     void moveObstacles(string fileName, int shift);
 
     void updatePath();
-    bool achievedGoalState(Node);
+    bool achievedStartState(Node);
 
     void drawMap(string fileName);
 
-    void addDynamicObstacles(string fileName, int shift);
+    void addDynamicObstacles(string fileName, int shift, double shX, double shY);
 
-    void pruneTree();
-
-    void resetTreeExceptPath();
+    void resetTreeFillGuidePath();
 };
 
 #endif //RRTX_RRTX_H

@@ -14,7 +14,7 @@ public:
 
     PathSimplifier(Map &mp):mp_(mp){}
 
-    virtual ~PathSimplifier() = default;
+    ~PathSimplifier() = default;
 
     bool reduceVertices(vector<Point> &path, unsigned int maxSteps = 0, unsigned int maxEmptySteps = 0,
                         double rangeRatio = 0.33);
@@ -29,18 +29,6 @@ public:
 
 
     bool simplifyMax(vector<Point> &path);
-
-//    bool findBetterGoal(vector<Point> &path, double maxTime, unsigned int samplingAttempts = 10,
-//                        double rangeRatio = 0.33, double snapToVertex = 0.005);
-//
-//    bool findBetterGoal(vector<Point> &path,
-//                        unsigned int samplingAttempts = 10, double rangeRatio = 0.33,
-//                        double snapToVertex = 0.005);
-
-//    void freeStates(bool flag);
-//
-//
-//    bool freeStates() const;
 
 protected:
 
