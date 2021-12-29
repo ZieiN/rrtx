@@ -28,7 +28,8 @@ const double ZETA = M_PI;
 const double GAMMA = 2 * pow((1 + DIM) * (MU_OBSTACLES / ZETA), 1 / DIM);
 //const int RAND_SEED = 100;
 const double probability_SAMPLE_START_NODE = 0.3;
-
+const int DENSITY_THRESHOLD = 30;
+const int MAX_NUM_NEIGHNORS = 20;
 
 // Dubins
 const double VELOCITY = 5;

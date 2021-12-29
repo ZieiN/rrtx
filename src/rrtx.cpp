@@ -45,6 +45,10 @@ Point RRTX::randomNode() {
 //    double y = rand() / (double) RAND_MAX * MX_WIDTH;
 //    double theta = rand() / (double) RAND_MAX * 2*M_PI;
 //    return Point(x, y, theta);
+    if(guidePathDefined && counterAddPath < guidePath.size()){
+        counterAddPath += 10;
+        return guidePath[(int)(guidePath.size())-1-counterAddPath-10];
+    }
      random_device rd;
      mt19937 mt(rd());
     uniform_real_distribution<double> randForStartPoint(0, 1);
@@ -84,7 +88,7 @@ bool RRTX::extend(Node &v) {
     auto it = nodes_.insert(nodes_.end(), v);
     Node *vItr = &(*it);
     vItr->selfItr_ = v.selfItr_ = vItr;
-    assert(&(*vItr) == vItr->selfItr_);
+//    assert(&(*vItr) == vItr->selfItr_);
     if(deletedNodes_.find(vItr->selfItr_)!=deletedNodes_.end()){
         deletedNodes_.erase(vItr->selfItr_);
     }
@@ -117,13 +121,29 @@ list<Node *> RRTX::near(Node &v) {
 }
 
 void RRTX::findParent(Node &v, list<Node *> &vNear) {
+    // we prune the neighbor set here, in addition to find the parent.
+    if(vNear.empty())
+        return;
+    vector<pair<double, Node*>> vectorNeighbors;
     for (auto &it: vNear) {
-        assert(steer(v.pnt_, it->pnt_));
         double costTransition = distanceBySteerFunction(v.pnt_, it->pnt_);
-        if (costTransition + it->lmc_ < v.lmc_) {
-            v.parent_ = it->selfItr_;
-            v.lmc_ = costTransition + it->lmc_;
+        vectorNeighbors.emplace_back(costTransition+it->lmc_, it);
+//        assert(steer(v.pnt_, it->pnt_));
+//        if (costTransition + it->lmc_ < v.lmc_) {
+//            v.parent_ = it->selfItr_;
+//            v.lmc_ = costTransition + it->lmc_;
+//        }
+    }
+    sort(vectorNeighbors.begin(), vectorNeighbors.end());
+    if(vNear.size()>MAX_NUM_NEIGHNORS){
+        vNear.clear();
+        for(int i=0; i<MAX_NUM_NEIGHNORS; ++i){
+            vNear.push_back(vectorNeighbors[i].second);
         }
+    }
+    if(vectorNeighbors[0].first < v.lmc_) {
+        v.parent_ = vectorNeighbors[0].second->selfItr_;
+        v.lmc_ = vectorNeighbors[0].first;
     }
 }
 
@@ -132,16 +152,28 @@ double RRTX::distanceFunction(Point &v1, Point &v2) {
 }
 
 bool RRTX::steer(Point v1, Point &v2) {
+    auto startTime = high_resolution_clock::now();
     Dubins d(MIN_RADIUS, 0);
     auto path=d.dubins(&v1, &v2);
     vector<Point> v;
-    for(int i=1; i<=100; ++i){
+    int numOfTimeSteps = d.distance(&v1, &v2)+1;
+//    cerr<<numOfTimeSteps<<endl;
+    double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//    cerr << "Time to create dubins " << diffTime / 1000.0 << "ms" << endl;
+    for(int i=1; i<=numOfTimeSteps; ++i){
         Point p;
-        d.interpolate(&v1, path, (double)i/100.0, &p);
-        if(mp_.cellIsObstacle(p.x_, p.y_))
+        d.interpolate(&v1, path, (double)i/numOfTimeSteps, &p);
+        if(mp_.cellIsObstacle(p.x_, p.y_)) {
+
+            double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//            cerr << "Time to update steer " << diffTime / 1000.0 << "ms" << endl;
             return false;
+        }
 //        v.push_back(p);
     }
+
+    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//    cerr << "Time to update the steerBig " << diffTime/1000.0 << "ms" << endl;
     return true;
 //    AgentState startState, goal;
 //    startState.pos = {v1.x_, v1.y_};
@@ -159,10 +191,14 @@ bool RRTX::steer(Point v1, Point &v2) {
 }
 
 
-void RRTX::checkForAppearedObstacles() {
+void RRTX::checkForAppearedObstacles(){
+//    int sm = nodes_.size();
     for (auto it = nodes_.begin(); it != nodes_.end(); ++it) {
+//        sm += it->NPlusR_.size() + it->NPlus0_.size();
+//        auto startTime = high_resolution_clock::now();
         for (auto it1 = it->NPlus0_.begin(); it1 != it->NPlus0_.end();) {
             if (!steer(it->pnt_, (*it1)->pnt_)) {
+//                auto startTime = high_resolution_clock::now();
                 it->NPlusNotConnected0_.insert(*it1);
                 (*it1)->NMinusNotConnectedR_.insert(&*it);
                 if (it->parent_ == (*it1)) {
@@ -173,12 +209,20 @@ void RRTX::checkForAppearedObstacles() {
                 }
                 (*it1)->NMinusR_.erase(&*it);
                 it1 = (it->NPlus0_).erase(it1);
+//                auto diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//                cerr << "Time to delete0 " << diffTime/1000.0 << "ms" << endl;
             } else {
                 ++it1;
             }
         }
+//
+//        double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//        cerr << "Time to update the map3-1 " << diffTime/1000.0 << "ms" << endl;
+//        startTime = high_resolution_clock::now();
         for (auto it1 = it->NPlusR_.begin(); it1 != it->NPlusR_.end();) {
             if (!steer(it->pnt_, (*it1)->pnt_)) {
+
+//                auto startTime = high_resolution_clock::now();
                 it->NPlusNotConnectedR_.insert(*it1);
                 (*it1)->NMinusNotConnected0_.insert(&*it);
                 if (it->parent_ == (*it1)) {
@@ -189,49 +233,67 @@ void RRTX::checkForAppearedObstacles() {
                 }
                 (*it1)->NMinus0_.erase(&*it);
                 it1 = (it->NPlusR_).erase(it1);
+//                auto diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//                cerr << "Time to delete1 " << diffTime/1000.0 << "ms" << endl;
             } else {
                 ++it1;
             }
         }
-        for (auto it1 = it->NMinus0_.begin(); it1 != it->NMinus0_.end();) {
-            if (!steer((*it1)->pnt_, it->pnt_)) {
-                it->NMinusNotConnected0_.insert(*it1);
-                (*it1)->NPlusNotConnectedR_.insert(&*it);
-                if ((*it1)->parent_ == it->selfItr_) {
-                    orphans_.insert(*it1);
-                    (*it1)->g_ = INF;
-                    (*it1)->parent_ = NULL;
-                    it->children_.erase((*it1)->selfItr_);
-                }
-                (*it1)->NPlusR_.erase(&*it);
-                it1 = (it->NMinus0_).erase(it1);
-            } else {
-                ++it1;
-            }
-        }
-        for (auto it1 = it->NMinusR_.begin(); it1 != it->NMinusR_.end();) {
-            if (!steer((*it1)->pnt_, it->pnt_)) {
-                it->NMinusNotConnectedR_.insert(*it1);
-                (*it1)->NPlusNotConnected0_.insert(&*it);
-                if ((*it1)->parent_ == it->selfItr_) {
-                    orphans_.insert(*it1);
-                    (*it1)->g_ = INF;
-                    (*it1)->parent_ = NULL;
-                    it->children_.erase((*it1)->selfItr_);
-                }
-                (*it1)->NPlus0_.erase(&*it);
-                it1 = (it->NMinusR_).erase(it1);
-            } else {
-                ++it1;
-            }
-        }
+//
+//        diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+////        cerr << "Time to update the map3-2 " << diffTime/1000.0 << "ms" << endl;
+//        startTime = high_resolution_clock::now();
+//        for (auto it1 = it->NMinus0_.begin(); it1 != it->NMinus0_.end();) {
+//            if (!steer((*it1)->pnt_, it->pnt_)) {
+//                startTime = high_resolution_clock::now();
+//                it->NMinusNotConnected0_.insert(*it1);
+//                (*it1)->NPlusNotConnectedR_.insert(&*it);
+//                if ((*it1)->parent_ == it->selfItr_) {
+//                    orphans_.insert(*it1);
+//                    (*it1)->g_ = INF;
+//                    (*it1)->parent_ = NULL;
+//                    it->children_.erase((*it1)->selfItr_);
+//                }
+//                (*it1)->NPlusR_.erase(&*it);
+//                it1 = (it->NMinus0_).erase(it1);
+//                diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//                cerr << "Time to delete " << diffTime/1000.0 << "ms" << endl;
+//            } else {
+//                ++it1;
+//            }
+//        }
+//
+//        diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+////        cerr << "Time to update the map3-3 " << diffTime/1000.0 << "ms" << endl;
+//        startTime = high_resolution_clock::now();
+//        for (auto it1 = it->NMinusR_.begin(); it1 != it->NMinusR_.end();) {
+//            if (!steer((*it1)->pnt_, it->pnt_)) {
+//                it->NMinusNotConnectedR_.insert(*it1);
+//                (*it1)->NPlusNotConnected0_.insert(&*it);
+//                if ((*it1)->parent_ == it->selfItr_) {
+//                    orphans_.insert(*it1);
+//                    (*it1)->g_ = INF;
+//                    (*it1)->parent_ = NULL;
+//                    it->children_.erase((*it1)->selfItr_);
+//                }
+//                (*it1)->NPlus0_.erase(&*it);
+//                it1 = (it->NMinusR_).erase(it1);
+//            } else {
+//                ++it1;
+//            }
+//        }
+
+//        diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+////        cerr << "Time to update the map3-4 " << diffTime/1000.0 << "ms" << endl;
+//        startTime = high_resolution_clock::now();
     }
+//    cout<<"SUM = "<<sm<<endl;
 }
 
 void RRTX::addAllChildren(Node *vItr) {
-    assert(deletedNodes_.find(vItr)==deletedNodes_.end());
+//    assert(deletedNodes_.find(vItr)==deletedNodes_.end());
     for (auto &it: vItr->children_) {
-        assert(orphans_.find(it)==orphans_.end());
+//        assert(orphans_.find(it)==orphans_.end());
         orphans_.insert(it);
         addAllChildren(it);
     }
@@ -262,7 +324,7 @@ void RRTX::propagateDescendants() {
         (*it)->g_ = INF;
         (*it)->lmc_ = INF;
         if ((*it)->parent_ != NULL) {
-            assert(((*it)->parent_)->children_.find((*it)->selfItr_) != ((*it)->parent_)->children_.end());
+//            assert(((*it)->parent_)->children_.find((*it)->selfItr_) != ((*it)->parent_)->children_.end());
             ((*it)->parent_)->children_.erase((*it)->selfItr_);
             (*it)->parent_ = NULL;
         }
@@ -270,7 +332,7 @@ void RRTX::propagateDescendants() {
         ++it;
         orphans_.erase(it1);
     }
-    assert(orphans_.size()==0);
+//    assert(orphans_.size()==0);
 }
 
 
@@ -286,7 +348,7 @@ void RRTX::drawSolution(string fileName) {
 
 void RRTX::cullNeighbors(Node *&vItr) {
     for (auto it = vItr->NPlusR_.begin(); it != vItr->NPlusR_.end();) {
-        assert(*it != NULL);
+//        assert(*it != NULL);
         if ((*it)->selfItr_ == vItr->parent_ || distanceFunction((*it)->pnt_, vItr->pnt_)<=radius_) {
             ++it;
             continue;
@@ -360,7 +422,7 @@ void RRTX::reduceInconsistency() {
 
 // For nodes around me (vItr), try to connect them through me if it's better.
 void RRTX::rewireNeighbors(Node* &vItr) {
-    assert(orphans_.find(vItr)==orphans_.end());
+//    assert(orphans_.find(vItr)==orphans_.end());
     if(orphans_.find(vItr)!=orphans_.end())return;
     if (vItr->g_ - vItr->lmc_ > EPS) {
         cullNeighbors(vItr);
@@ -472,11 +534,16 @@ void RRTX::check() {
 }
 
 void RRTX::deleteNode(list<Node>::iterator &pntNode) {
-    assert(&(*pntNode) == pntNode->selfItr_);
+//    assert(&(*pntNode) == pntNode->selfItr_);
+    // The goal node shouldn't be called to be deleted. If this happens, ignore it.
+    if(pntNode==nodes_.begin()){
+        return;
+    }
+
     for (auto &it: pntNode->NPlus0_) {
         it->NMinusR_.erase(pntNode->selfItr_);
         if (pntNode->parent_ == it->selfItr_) {
-            assert(it->children_.find(pntNode->selfItr_) != it->children_.end());
+//            assert(it->children_.find(pntNode->selfItr_) != it->children_.end());
             it->children_.erase(pntNode->selfItr_);
         }
     }
@@ -484,7 +551,7 @@ void RRTX::deleteNode(list<Node>::iterator &pntNode) {
         it->NMinus0_.erase(pntNode->selfItr_);
 
         if (pntNode->parent_ == it->selfItr_) {
-            assert(it->children_.find(pntNode->selfItr_) != it->children_.end());
+//            assert(it->children_.find(pntNode->selfItr_) != it->children_.end());
             it->children_.erase(pntNode->selfItr_);
         }
     }
@@ -495,7 +562,7 @@ void RRTX::deleteNode(list<Node>::iterator &pntNode) {
         it->NMinusNotConnected0_.erase(pntNode->selfItr_);
     }
     for (auto &it: pntNode->NMinus0_) {
-        assert(it->NPlusR_.find(pntNode->selfItr_) != it->NPlusR_.end());
+//        assert(it->NPlusR_.find(pntNode->selfItr_) != it->NPlusR_.end());
         it->NPlusR_.erase(pntNode->selfItr_);
         if (it->parent_ == pntNode->selfItr_) {
             orphans_.insert(it);
@@ -504,7 +571,7 @@ void RRTX::deleteNode(list<Node>::iterator &pntNode) {
         }
     }
     for (auto &it: pntNode->NMinusR_) {
-        assert(it->NPlus0_.find(pntNode->selfItr_) != it->NPlus0_.end());
+//        assert(it->NPlus0_.find(pntNode->selfItr_) != it->NPlus0_.end());
         it->NPlus0_.erase(pntNode->selfItr_);
         if (it->parent_ == pntNode->selfItr_) {
             orphans_.insert(it);
@@ -533,10 +600,10 @@ void RRTX::deleteNode(list<Node>::iterator &pntNode) {
 
 void RRTX::shiftTree(double shiftDeltaX, double shiftDeltaY) {
     for (auto it = nodes_.begin(); it != nodes_.end(); ++it) {
-        assert(&(*it) == it->selfItr_);
+//        assert(&(*it) == it->selfItr_);
         it->pnt_.x_ += shiftDeltaX;
         it->pnt_.y_ += shiftDeltaY;
-        assert((&*it) == it->selfItr_);
+//        assert((&*it) == it->selfItr_);
     }
 }
 
@@ -576,6 +643,7 @@ bool RRTX::search() {
     auto startTime = high_resolution_clock::now();
     double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
     while (!vBotIsAdded_ && diffTime < 100000) {
+//        assert(nodes_.size()>0);
         shrinkingBallRadius();
         Point randPnt = randomNode();
         Node v = Node(randPnt, INF, INF, NULL, NULL);
@@ -604,7 +672,6 @@ bool RRTX::search() {
                     updatePath();
                     resetTreeFillGuidePath();
                     guidePathDefined = true;
-                    cout<<"guide set on "<<finalPath.size()<<" "<<vBotIsAdded_<<endl;
                 }
             }
         }
@@ -614,7 +681,7 @@ bool RRTX::search() {
         }
         diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
     }
-    cerr << "Elapsed time:" << diffTime/1000.0 << "ms" << endl;
+//    cerr << "Elapsed time:" << diffTime/1000.0 << "ms" << endl;
     return vBotIsAdded_;
 }
 
@@ -648,9 +715,14 @@ Node *RRTX::nearest(Node &v) {
 }
 
 void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY, double newTheta) {
-    auto startTime = high_resolution_clock::now();
     shiftTree(-shiftDeltaX, -shiftDeltaY);
     shiftGoal(-shiftDeltaX, -shiftDeltaY);
+    if(guidePathDefined){
+        for(auto &it:guidePath){
+            it.x_ -= shiftDeltaX;
+            it.y_ -= shiftDeltaY;
+        }
+    }
     startPoint_.theta_=newTheta;
     updatePathNeeded = true;
     for (auto it = nodes_.begin(); it != nodes_.end();) {
@@ -671,8 +743,6 @@ void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY, double newTheta) {
     }
     propagateDescendants();
     reduceInconsistency();
-    double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-    cerr << "Time to shift the map:" << diffTime/1000.0 << "ms" << endl;
 }
 
 void RRTX::shiftGoal(double shiftDeltaX, double shiftDeltaY) {
@@ -686,7 +756,7 @@ void RRTX::drawTree(string fileName) {
     for (auto &it:nodes_) {
         if (it.parent_ != NULL){
             vector<Point> v;
-            steerTrajectory(it.pnt_, it.parent_->pnt_, v, 20);
+            steerTrajectory(it.pnt_, it.parent_->pnt_, v);
             for(int i=0; i+1<v.size(); i+=1){
                 out<<v[i].x_<<" "<<v[i].y_<<" "<<v[i+1].x_<<" "<<v[i+1].y_<<endl;
             }
@@ -701,7 +771,7 @@ void RRTX::drawTree(string fileName) {
 void RRTX::updateMap(Map &mp) {
     mp_ = mp;
     checkForDisappearedObstacles();
-    reduceInconsistency();
+//    reduceInconsistency();
     checkForAppearedObstacles();
     propagateDescendants();
     reduceInconsistency();
@@ -747,42 +817,42 @@ void RRTX::checkForDisappearedObstacles() {
                 ++it1;
         }
 
-        for(auto it1=it.NMinusNotConnectedR_.begin(); it1!=it.NMinusNotConnectedR_.end();){
-            if(steer((*it1)->pnt_, it.pnt_)){
-                it.NMinusR_.insert((*it1)->selfItr_);
-                (*it1)->NPlus0_.insert(it.selfItr_);
-                if(distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_ < (*it1)->lmc_){
-                    (*it1)->lmc_ = distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_;
-                    if((*it1)->parent_!=NULL)
-                        (*it1)->parent_->children_.erase((*it1)->selfItr_);
-                    (*it1)->parent_ = it.selfItr_;
-                    it.children_.insert((*it1)->selfItr_);
-                    verifyQueue(*it1);
-                }
-                (*it1)->NPlusNotConnected0_.erase(it.selfItr_);
-                it1 = it.NMinusNotConnectedR_.erase(it1);
-            }
-            else
-                ++it1;
-        }
-        for(auto it1=it.NMinusNotConnected0_.begin(); it1!=it.NMinusNotConnected0_.end();){
-            if(steer((*it1)->pnt_, it.pnt_)){
-                it.NMinus0_.insert((*it1)->selfItr_);
-                (*it1)->NPlusR_.insert(it.selfItr_);
-                if(distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_ < (*it1)->lmc_){
-                    (*it1)->lmc_ = distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_;
-                    if((*it1)->parent_!=NULL)
-                        (*it1)->parent_->children_.erase((*it1)->selfItr_);
-                    (*it1)->parent_ = it.selfItr_;
-                    it.children_.insert((*it1)->selfItr_);
-                    verifyQueue(*it1);
-                }
-                (*it1)->NPlusNotConnectedR_.erase(it.selfItr_);
-                it1 = it.NMinusNotConnected0_.erase(it1);
-            }
-            else
-                ++it1;
-        }
+//        for(auto it1=it.NMinusNotConnectedR_.begin(); it1!=it.NMinusNotConnectedR_.end();){
+//            if(steer((*it1)->pnt_, it.pnt_)){
+//                it.NMinusR_.insert((*it1)->selfItr_);
+//                (*it1)->NPlus0_.insert(it.selfItr_);
+//                if(distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_ < (*it1)->lmc_){
+//                    (*it1)->lmc_ = distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_;
+//                    if((*it1)->parent_!=NULL)
+//                        (*it1)->parent_->children_.erase((*it1)->selfItr_);
+//                    (*it1)->parent_ = it.selfItr_;
+//                    it.children_.insert((*it1)->selfItr_);
+//                    verifyQueue(*it1);
+//                }
+//                (*it1)->NPlusNotConnected0_.erase(it.selfItr_);
+//                it1 = it.NMinusNotConnectedR_.erase(it1);
+//            }
+//            else
+//                ++it1;
+//        }
+//        for(auto it1=it.NMinusNotConnected0_.begin(); it1!=it.NMinusNotConnected0_.end();){
+//            if(steer((*it1)->pnt_, it.pnt_)){
+//                it.NMinus0_.insert((*it1)->selfItr_);
+//                (*it1)->NPlusR_.insert(it.selfItr_);
+//                if(distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_ < (*it1)->lmc_){
+//                    (*it1)->lmc_ = distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_;
+//                    if((*it1)->parent_!=NULL)
+//                        (*it1)->parent_->children_.erase((*it1)->selfItr_);
+//                    (*it1)->parent_ = it.selfItr_;
+//                    it.children_.insert((*it1)->selfItr_);
+//                    verifyQueue(*it1);
+//                }
+//                (*it1)->NPlusNotConnectedR_.erase(it.selfItr_);
+//                it1 = it.NMinusNotConnected0_.erase(it1);
+//            }
+//            else
+//                ++it1;
+//        }
     }
 }
 
@@ -834,7 +904,7 @@ void RRTX::moveObstacles(string fileName, int shift) {
     }
     mp_ = mp1;
     checkForDisappearedObstacles();
-    reduceInconsistency();
+//    reduceInconsistency();
     checkForAppearedObstacles();
     propagateDescendants();
     reduceInconsistency();
@@ -896,11 +966,27 @@ void RRTX::addDynamicObstacles(string fileName, int shift, double shX, double sh
         }
     }
 //    mp_ = mp2;
+//    auto startTime = high_resolution_clock::now();
     checkForDisappearedObstacles();
-    reduceInconsistency();
+//    double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//    cerr << "Time to update the map1 " << diffTime/1000.0 << "ms" << endl;
+//    startTime = high_resolution_clock::now();
+//    reduceInconsistency();
+//    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//    startTime = high_resolution_clock::now();
+//    cerr << "Time to update the map2 " << diffTime/1000.0 << "ms" << endl;
     checkForAppearedObstacles();
+//    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//    cerr << "Time to update the map3 " << diffTime/1000.0 << "ms" << endl;
+//    startTime = high_resolution_clock::now();
     propagateDescendants();
+//    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//    startTime = high_resolution_clock::now();
+//    cerr << "Time to update the map4 " << diffTime/1000.0 << "ms" << endl;
     reduceInconsistency();
+//    double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//    cerr << "Time to update the map " << diffTime/1000.0 << "ms" << endl;
+//    startTime = high_resolution_clock::now();
 }
 
 bool RRTX::achievedStartState(Node v) {
@@ -918,10 +1004,13 @@ double RRTX::distanceBySteerFunction(Point &v1, Point &v2) {
     return d.distance(&v1, &v2);
 }
 
-void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, int timeSteps) {
+void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory) {
     Dubins d(MIN_RADIUS, 0);
     auto path=d.dubins(&v1, &v2);
     vector<Point> v;
+    int timeSteps = d.distance(&v1, &v2)+1;
+//    cout<<v1.x_<<" "<<v1.y_<<" "<<v1.theta_<<", "<<v2.x_<<" "<<v2.y_<<" "<<v2.theta_<<endl;
+//    cout<<timeSteps<<endl;
     for(int i=1; i<=timeSteps; ++i){
         Point p;
         d.interpolate(&v1, path, (double)i/timeSteps, &p);
@@ -946,7 +1035,7 @@ void RRTX::updatePath() {
         for(int i=0; i+1<path.size(); ++i){
             auto it = path[i], it1 = path[i+1];
             vector<Point> v;
-            steerTrajectory(it, it1, v, 50);
+            steerTrajectory(it, it1, v);
             for(auto it:v){
 //                assert(mp_.cellIsObstacle(it.x_, it.y_)==0);
                 finalPath.push_back(it);
@@ -962,6 +1051,7 @@ void RRTX::resetTreeFillGuidePath() {
     for(auto it:finalPath){
         guidePath.push_back(it);
     }
+    counterAddPath = 1;
     finalPath.clear();
     initializeTree();
 }

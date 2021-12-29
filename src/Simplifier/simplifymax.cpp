@@ -476,9 +476,13 @@ bool PathSimplifier::checkMotion(Point &p1, Point &p2) {
 //        out<<p.x_<<" "<<p.y_<<" "<<p.x_<<" "<<p.y_<<" "<<endl;
 //    }
 //    out.close();
-    for(int i=1; i<=100; ++i){
+//    cout<<p1.x_<<" "<<p1.y_<<" "<<p1.theta_<<"-->"<<p2.x_<<" "<<p2.y_<<" "<<p2.theta_<<endl;
+    int numOfTimeSteps = distance(p1, p2)*3+1;
+//    cout<<"Here"<<numOfTimeSteps<<endl;
+    for(int i=1; i<=numOfTimeSteps; ++i){
         Point p;
-        d.interpolate(&p1, path, (double)i/100.0, &p);
+        d.interpolate(&p1, path, (double)i/numOfTimeSteps, &p);
+//        cout<<p.x_<<" "<<p.y_<<endl;
         if(mp_.cellIsObstacle(p.x_, p.y_)) {
             return false;
         }

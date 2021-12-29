@@ -6,7 +6,7 @@ using namespace std;
 using namespace std::chrono;
 
 int main() {
-    for(int imageNum = 1; imageNum<=1; ++imageNum) {
+    for(int imageNum = 1; imageNum<=3; ++imageNum) {
         string imageName = to_string(imageNum);
         string inputsFile = "../input/map" + imageName + "/inputs.txt";
         ifstream in;
@@ -24,7 +24,7 @@ int main() {
             string shiftFile = "../output/map" + imageName + "/Dynamics/shifts-"+ to_string(cnt)+".txt";
             outShifts.open(shiftFile.c_str());
             double shX = 0, shY = 0;
-            for (int i = 0; i < 150; ++i) {
+            for (int i = 0; i < 150 && rrtx.distanceFunction(rrtx.goal_, rrtx.startPoint_)>EPS_GOAL; ++i) {
 //            rrtx.moveObstacles("../input/map"+imageName+"/image.txt", i);
                 cerr<<imageNum<<" "<<cnt<<" "<<i<<"::";
                 auto startTime = high_resolution_clock::now();
@@ -34,7 +34,7 @@ int main() {
                         rrtx.updatePath();
                     }
                     int tmp = 0; double dist = 0;
-                    while(dist<2){
+                    while(dist<1 && tmp+1<rrtx.finalPath.size() && !rrtx.mp_.cellIsObstacle(rrtx.finalPath[tmp+1].x_, rrtx.finalPath[tmp+1].y_)){
                         ++tmp;
                         dist += hypot(rrtx.finalPath[tmp].x_-rrtx.finalPath[tmp-1].x_,
                                       rrtx.finalPath[tmp].y_-rrtx.finalPath[tmp-1].y_);
@@ -42,7 +42,6 @@ int main() {
                     shX += rrtx.finalPath[tmp].x_-rrtx.finalPath[0].x_;
                     shY += rrtx.finalPath[tmp].y_-rrtx.finalPath[0].y_;
                     cout<<"Shifting..."<<endl;
-                    cout<<shX<<" "<<shY<<endl;
                     rrtx.moveRobot(rrtx.finalPath[tmp].x_-rrtx.finalPath[0].x_,
                                    rrtx.finalPath[tmp].y_-rrtx.finalPath[0].y_, rrtx.finalPath[tmp].theta_);
                 }
@@ -57,6 +56,7 @@ int main() {
                 rrtx.search();
                 auto diffTime2 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
                 outTime <<diffTime1<<" "<< diffTime2 << endl;
+                cout <<diffTime1/1000.0<<" "<< diffTime2/1000.0 << endl;
                 rrtx.drawTree("../output/map" + imageName + "/Dynamics/outTree" + to_string(cnt) + "-" + to_string(i) +
                               ".txt");
                 rrtx.drawSolution(

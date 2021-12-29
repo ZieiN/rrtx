@@ -2,15 +2,15 @@ import glob
 from PIL import Image
 
 
-for imageNum in range(1, 4):
-    for id in range(20):
+for imageNum in range(1, 2):
+    for id in range(11,12):
         # filepaths
         fp_in = '../output/ImagesMap' + str(imageNum) + "/test" + str(id) + "/"
         # fp_in = "/path/to/image_*.png"
         fp_out = '../output/GIF_images/Map_' + str(imageNum) + "-test_" + str(id) + "-GIFimage.gif"
 
         imagesFiles = []
-        for i in range(50):
+        for i in range(98):
             imagesFiles.append(fp_in+str(i)+".png")
         # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#gif
         img, *imgs = [Image.open(f) for f in imagesFiles]

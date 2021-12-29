@@ -32,7 +32,7 @@ for imageNm in range(1,4):
     numOfSeconds = 150
     numOfTests = 20
 
-    for id in range(1, numOfTests):
+    for id in range(0, numOfTests):
         shiftsX = []
         shiftsY = []
         with open('../output/map' + imageNum + '/Dynamics/shifts-'+str(id)+'.txt') as f:
@@ -41,7 +41,7 @@ for imageNm in range(1,4):
                 shiftsX.append(a[0])
                 shiftsY.append(a[1])
             f.close()
-        for id1 in range(numOfSeconds):
+        for id1 in range(0, numOfSeconds):
             pl.clf()
             pl.axis('equal')
             pl.plot([0, 0, 600, 600, 0], [600, 0, 0, 600, 600], "r-")
@@ -51,34 +51,41 @@ for imageNm in range(1,4):
             e = []
             ff = []
             gg = []
+            cnt = 0
             with open('../output/map' + imageNum + '/Dynamics/outTree' + str(id) + '-' + str(id1)+'.txt') as f:
                 for line in f:
-                    a = [float(i) for i in line.split()]
-                    if len(a) == 4:
-                        b.append(a[0])
-                        c.append(a[1])
-                        d.append(a[2])
-                        e.append(a[3])
-                    else:
-                        ff.append(a[0])
-                        gg.append(a[1])
+                    if(cnt%1==0):
+                        a = [float(i) for i in line.split()]
+                        if len(a) == 4:
+                            b.append(a[0])
+                            c.append(a[1])
+                            d.append(a[2])
+                            e.append(a[3])
+                        else:
+                            ff.append(a[0])
+                            gg.append(a[1])
+                    cnt += 1
             f.close()
 
             # pl.plot(b, c, 'b.')
             # pl.plot(d, e, 'b.')
+            print(len(b))
             pl.plot([b, d], [c, e], 'y-')
-            # pl.plot(ff, gg, '.', markerfacecolor='white', markeredgecolor='blue', markersize=12)
+            pl.plot(ff, gg, '.', markerfacecolor='white', markeredgecolor='blue', markersize=12)
 
             ff = []
             gg = []
+            cnt = 0
             with open('../output/map' + imageNum + '/Dynamics/outSol' + str(id) + '-'+str(id1)+'.txt') as f:
                 for line in f:
-                    a = [float(i) for i in line.split()]
-                    pl.plot([a[0], a[2]], [a[1], a[3]], 'r-', linewidth=4)
-                    ff.append(a[0])
-                    ff.append(a[2])
-                    gg.append(a[1])
-                    gg.append(a[3])
+                    if(cnt%1==0):
+                        a = [float(i) for i in line.split()]
+                        pl.plot([a[0], a[2]], [a[1], a[3]], 'r-', linewidth=4)
+                    cnt += 1
+                    # ff.append(a[0])
+                    # ff.append(a[2])
+                    # gg.append(a[1])
+                    # gg.append(a[3])
             f.close()
 
             # pl.plot(ff, gg, 'g.', linewidth=9)

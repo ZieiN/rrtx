@@ -143,9 +143,9 @@ DubinsPath dubinsRLR(double d, double alpha, double beta)
         double theta = atan2(ca - cb, d - sa + sb);
         double t = mod2pi(alpha - theta + .5 * p);
         double q = mod2pi(alpha - beta - t + p);
-        assert(fabs(2. * sin(alpha - t + p) - 2. * sin(alpha - t) - d + sa - sb) < 2 * DUBINS_EPS);
-        assert(fabs(-2. * cos(alpha - t + p) + 2. * cos(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
-        assert(mod2pi(alpha - t + p - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+//        assert(fabs(2. * sin(alpha - t + p) - 2. * sin(alpha - t) - d + sa - sb) < 2 * DUBINS_EPS);
+//        assert(fabs(-2. * cos(alpha - t + p) + 2. * cos(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
+//        assert(mod2pi(alpha - t + p - q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
         return DubinsPath(dubinsPathType[4], t, p, q);
     }
     return {};

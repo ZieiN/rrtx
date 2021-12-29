@@ -73,6 +73,7 @@ public:
     vector<Point> finalPath;
     bool updatePathNeeded;
     bool guidePathDefined;
+    int counterAddPath;
 
     bool extend(Node &v);
     list<Node *> near(Node &v);
@@ -80,7 +81,7 @@ public:
     static double distanceFunction(Point &v1, Point &v2);
     double distanceBySteerFunction(Point &v1, Point &v2);
     bool steer(Point v1, Point &v2);
-    void steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, int timeSteps);
+    void steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory);
     void updateMap(Map &mp);
     void updateMapFromFile(string fileName);
     void addAllChildren(Node *vItr);
