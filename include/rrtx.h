@@ -81,7 +81,7 @@ public:
     static double distanceFunction(Point &v1, Point &v2);
     double distanceBySteerFunction(Point &v1, Point &v2);
     bool steer(Point v1, Point &v2);
-    void steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory);
+    void steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, double step);
     void updateMap(Map &mp);
     void updateMapFromFile(string fileName);
     void addAllChildren(Node *vItr);
@@ -107,6 +107,8 @@ public:
     void checkForDisappearedObstacles();
     void checkForAppearedObstacles();
     void moveObstacles(string fileName, int shift);
+    bool checkDubinsPath(Dubins &d, DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy, double t1, double t2);
+//    bool checkPartOfLeftCircle(double cntrX, double cntrY, double r, double stx, double sty, double ndx, double ndy);
 
     void updatePath();
     bool achievedStartState(Node);

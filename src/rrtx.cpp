@@ -50,6 +50,7 @@ Point RRTX::randomNode() {
         return guidePath[(int)(guidePath.size())-1-counterAddPath-10];
     }
      random_device rd;
+//    static int cnt = 0;
      mt19937 mt(rd());
     uniform_real_distribution<double> randForStartPoint(0, 1);
     if (randForStartPoint(mt) < probability_SAMPLE_START_NODE) {
@@ -113,8 +114,9 @@ list<Node *> RRTX::near(Node &v) {
         // if(it.parent_ == NULL)
         //     continue;
         if (distanceFunction(v.pnt_, it.pnt_) <= radius_) {
-            if(steer(v.pnt_, it.pnt_))
+            if(steer(v.pnt_, it.pnt_)) {
                 ans.push_back(it.selfItr_);
+            }
         }
     }
     return ans;
@@ -122,8 +124,9 @@ list<Node *> RRTX::near(Node &v) {
 
 void RRTX::findParent(Node &v, list<Node *> &vNear) {
     // we prune the neighbor set here, in addition to find the parent.
-    if(vNear.empty())
+    if(vNear.empty()) {
         return;
+    }
     vector<pair<double, Node*>> vectorNeighbors;
     for (auto &it: vNear) {
         double costTransition = distanceBySteerFunction(v.pnt_, it->pnt_);
@@ -141,6 +144,11 @@ void RRTX::findParent(Node &v, list<Node *> &vNear) {
             vNear.push_back(vectorNeighbors[i].second);
         }
     }
+//    cout<<v.pnt_.x_<<","<<v.pnt_.y_<<","<<v.pnt_.theta_<<"::";
+//    for(auto it:vNear){
+//        cout<<it->pnt_.x_<<","<<it->pnt_.y_<<" ";
+//        assert(steer(v.pnt_, it->pnt_));
+//    }cout<<endl;
     if(vectorNeighbors[0].first < v.lmc_) {
         v.parent_ = vectorNeighbors[0].second->selfItr_;
         v.lmc_ = vectorNeighbors[0].first;
@@ -155,6 +163,7 @@ bool RRTX::steer(Point v1, Point &v2) {
     auto startTime = high_resolution_clock::now();
     Dubins d(MIN_RADIUS, 0);
     auto path=d.dubins(&v1, &v2);
+    return checkDubinsPath(d, path, &v1, v1.x_, v1.y_, v2.x_, v2.y_, 0, 1);
     vector<Point> v;
     int numOfTimeSteps = d.distance(&v1, &v2)+1;
 //    cerr<<numOfTimeSteps<<endl;
@@ -339,6 +348,9 @@ void RRTX::propagateDescendants() {
 void RRTX::drawSolution(string fileName) {
     ofstream out;
     out.open(fileName.c_str());
+    if(updatePathNeeded){
+        updatePath();
+    }
     for(int i=0; i+1<finalPath.size(); ++i){
 //        assert(mp_.cellIsObstacle(finalPath[i].x_, finalPath[i].y_)==0);
         out<<finalPath[i].x_<<" "<<finalPath[i].y_<<" "<<finalPath[i+1].x_<<" "<<finalPath[i+1].y_<<endl;
@@ -756,7 +768,7 @@ void RRTX::drawTree(string fileName) {
     for (auto &it:nodes_) {
         if (it.parent_ != NULL){
             vector<Point> v;
-            steerTrajectory(it.pnt_, it.parent_->pnt_, v);
+            steerTrajectory(it.pnt_, it.parent_->pnt_, v, 1);
             for(int i=0; i+1<v.size(); i+=1){
                 out<<v[i].x_<<" "<<v[i].y_<<" "<<v[i+1].x_<<" "<<v[i+1].y_<<endl;
             }
@@ -771,7 +783,6 @@ void RRTX::drawTree(string fileName) {
 void RRTX::updateMap(Map &mp) {
     mp_ = mp;
     checkForDisappearedObstacles();
-//    reduceInconsistency();
     checkForAppearedObstacles();
     propagateDescendants();
     reduceInconsistency();
@@ -816,43 +827,6 @@ void RRTX::checkForDisappearedObstacles() {
             else
                 ++it1;
         }
-
-//        for(auto it1=it.NMinusNotConnectedR_.begin(); it1!=it.NMinusNotConnectedR_.end();){
-//            if(steer((*it1)->pnt_, it.pnt_)){
-//                it.NMinusR_.insert((*it1)->selfItr_);
-//                (*it1)->NPlus0_.insert(it.selfItr_);
-//                if(distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_ < (*it1)->lmc_){
-//                    (*it1)->lmc_ = distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_;
-//                    if((*it1)->parent_!=NULL)
-//                        (*it1)->parent_->children_.erase((*it1)->selfItr_);
-//                    (*it1)->parent_ = it.selfItr_;
-//                    it.children_.insert((*it1)->selfItr_);
-//                    verifyQueue(*it1);
-//                }
-//                (*it1)->NPlusNotConnected0_.erase(it.selfItr_);
-//                it1 = it.NMinusNotConnectedR_.erase(it1);
-//            }
-//            else
-//                ++it1;
-//        }
-//        for(auto it1=it.NMinusNotConnected0_.begin(); it1!=it.NMinusNotConnected0_.end();){
-//            if(steer((*it1)->pnt_, it.pnt_)){
-//                it.NMinus0_.insert((*it1)->selfItr_);
-//                (*it1)->NPlusR_.insert(it.selfItr_);
-//                if(distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_ < (*it1)->lmc_){
-//                    (*it1)->lmc_ = distanceBySteerFunction((*it1)->pnt_, it.pnt_)+it.lmc_;
-//                    if((*it1)->parent_!=NULL)
-//                        (*it1)->parent_->children_.erase((*it1)->selfItr_);
-//                    (*it1)->parent_ = it.selfItr_;
-//                    it.children_.insert((*it1)->selfItr_);
-//                    verifyQueue(*it1);
-//                }
-//                (*it1)->NPlusNotConnectedR_.erase(it.selfItr_);
-//                it1 = it.NMinusNotConnected0_.erase(it1);
-//            }
-//            else
-//                ++it1;
-//        }
     }
 }
 
@@ -923,72 +897,6 @@ void RRTX::drawMap(string fileName) {
     out.close();
 }
 
-void RRTX::addDynamicObstacles(string fileName, int shift, double shX, double shY) {
-    int dx[8] = {1, 1, 1, -1, -1, -1, 0, 0},
-            dy[8] = {0, 1, -1, 0, 1, -1, 1, -1};
-    srand(0);
-    vector<pair<int, int>> v;
-    vector<int> sz;
-    for(int i=0; i<100; ++i){
-        v.emplace_back(rand()%mp_.getWidth(), rand()%mp_.getHeight());
-        sz.emplace_back(rand()%30);
-    }
-    ifstream in;
-    in.open(fileName.c_str());
-    int w, h, x;
-    in>>h>>w;
-    Map mp2(h, w);
-    for(int i=0; i<h; ++i){
-        for(int j=0; j<w; ++j){
-            in>>x;
-            mp2.setCell(i, j, x);
-        }
-    }
-    in.close();
-    for(int i=0; i<50; ++i){
-        int id = i%8;
-        int x = v[i].first + dx[id]*shift, y = v[i].second+dy[id]*shift;
-        for(int j=-sz[i]/2; j<sz[i]/2; ++j){
-            for(int k=-sz[i]/2; k<sz[i]/2; ++k){
-                if(mp_.isIn(x+j, y+k))
-                    mp2.setCellXY(x+j, y+k, 1);
-            }
-        }
-    }
-    for(int i=0; i<mp_.getHeight(); ++i){
-        for(int j=0; j<mp_.getWidth(); ++j){
-            int x = j+shX;
-            int y = (int)mp_.getHeight()-1-i+shY;
-            if(mp2.isIn(x, y) && mp2.cellIsObstacle(x, y))
-                mp_.setCell(i, j, 1);
-            else
-                mp_.setCell(i, j, 0);
-        }
-    }
-//    mp_ = mp2;
-//    auto startTime = high_resolution_clock::now();
-    checkForDisappearedObstacles();
-//    double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-//    cerr << "Time to update the map1 " << diffTime/1000.0 << "ms" << endl;
-//    startTime = high_resolution_clock::now();
-//    reduceInconsistency();
-//    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-//    startTime = high_resolution_clock::now();
-//    cerr << "Time to update the map2 " << diffTime/1000.0 << "ms" << endl;
-    checkForAppearedObstacles();
-//    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-//    cerr << "Time to update the map3 " << diffTime/1000.0 << "ms" << endl;
-//    startTime = high_resolution_clock::now();
-    propagateDescendants();
-//    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-//    startTime = high_resolution_clock::now();
-//    cerr << "Time to update the map4 " << diffTime/1000.0 << "ms" << endl;
-    reduceInconsistency();
-//    double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-//    cerr << "Time to update the map " << diffTime/1000.0 << "ms" << endl;
-//    startTime = high_resolution_clock::now();
-}
-
 bool RRTX::achievedStartState(Node v) {
     // Assuming both angles in [0, 2*PI] format.
     double diffAngle = abs(v.pnt_.theta_ - startPoint_.theta_);
@@ -1004,13 +912,11 @@ double RRTX::distanceBySteerFunction(Point &v1, Point &v2) {
     return d.distance(&v1, &v2);
 }
 
-void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory) {
+void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, double step) {
     Dubins d(MIN_RADIUS, 0);
     auto path=d.dubins(&v1, &v2);
     vector<Point> v;
-    int timeSteps = d.distance(&v1, &v2)+1;
-//    cout<<v1.x_<<" "<<v1.y_<<" "<<v1.theta_<<", "<<v2.x_<<" "<<v2.y_<<" "<<v2.theta_<<endl;
-//    cout<<timeSteps<<endl;
+    int timeSteps = d.distance(&v1, &v2)/step+2;
     for(int i=1; i<=timeSteps; ++i){
         Point p;
         d.interpolate(&v1, path, (double)i/timeSteps, &p);
@@ -1019,6 +925,7 @@ void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory) {
 }
 
 void RRTX::updatePath() {
+    updatePathNeeded = false;
     finalPath.clear();
     if (vBotIsAdded_) {
         auto it = vBot_;
@@ -1035,7 +942,7 @@ void RRTX::updatePath() {
         for(int i=0; i+1<path.size(); ++i){
             auto it = path[i], it1 = path[i+1];
             vector<Point> v;
-            steerTrajectory(it, it1, v);
+            steerTrajectory(it, it1, v, 1);
             for(auto it:v){
 //                assert(mp_.cellIsObstacle(it.x_, it.y_)==0);
                 finalPath.push_back(it);
@@ -1055,6 +962,74 @@ void RRTX::resetTreeFillGuidePath() {
     finalPath.clear();
     initializeTree();
 }
+
+bool RRTX::checkDubinsPath(Dubins &d, DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy, double t1, double t2) {
+    if(abs(int(stx+0.5)-int(ndx+0.5)) + abs(int(sty+0.5)-int(ndy+0.5))<=1 && t2-t1<1-EPS_DOUBLE){
+        set<int> vx = {int(stx+0.5)}, vy = {int(sty+0.5)};
+        if(abs(stx-(int(stx)+0.5))<=EPS_DOUBLE){
+            vx.insert(ceil(stx));vx.insert(floor(stx));
+        }
+        if(abs(ndx-(int(ndx)+0.5))<=EPS_DOUBLE){
+            vx.insert(ceil(ndx));vx.insert(floor(ndx));
+        }
+        if(abs(sty-(int(sty)+0.5))<=EPS_DOUBLE){
+            vy.insert(ceil(sty));vy.insert(floor(sty));
+        }
+        if(abs(ndy-(int(ndy)+0.5))<=EPS_DOUBLE){
+            vy.insert(ceil(ndy));vy.insert(floor(ndy));
+        }
+        for(auto itx:vx){
+            for(auto ity:vy){
+                if(mp_.cellIsObstacle(itx, ity)){
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    //    if(abs(int(stx+0.5)-int(ndx+0.5)) + abs(int(sty+0.5)-int(ndy+0.5))<=1 && t2-t1<1-EPS_DOUBLE){ // assure the start and end points are not in the same cell.
+//        return !mp_.cellIsObstacle(stx, sty) && !mp_.cellIsObstacle(ndx, ndy);
+//        bool ans =  !mp_.cellIsObstacle(stx, sty);
+//        double tmpx = stx, tmpy = sty;
+//        if(stx < int(stx+0.5))
+//            tmpx = stx-0.5;
+//        else if(stx > int(stx+0.5))
+//            tmpx = stx+0.5;
+//        if(sty < int(sty+0.5))
+//            tmpy = sty-0.5;
+//        else if(sty > int(sty+0.5))
+//            tmpy = sty+0.5;
+//        ans = ans && !mp_.cellIsObstacle(tmpx, sty) && !mp_.cellIsObstacle(stx, tmpy) && !mp_.cellIsObstacle(tmpx, tmpy);
+//        if((int(stx+0.5) != int(ndx+0.5)) || (int(sty+0.5) != int(ndy+0.5))){
+//            ans = ans && !mp_.cellIsObstacle(ndx, ndy);
+//
+//            tmpx = ndx, tmpy = ndy;
+//            if(ndx < int(ndx+0.5))
+//                tmpx = ndx-0.5;
+//            else if(ndx > int(ndx+0.5))
+//                tmpx = ndx+0.5;
+//            if(ndy < int(ndy+0.5))
+//                tmpy = ndy-0.5;
+//            else if(ndy > int(ndy+0.5))
+//                tmpy = ndy+0.5;
+//            ans = ans && !mp_.cellIsObstacle(tmpx, ndy) && !mp_.cellIsObstacle(ndx, tmpy) && !mp_.cellIsObstacle(tmpx, tmpy);
+//        }
+//        return ans;
+//    }
+    Point md;
+    double mdT = (t1+t2)/2.0;
+    d.interpolate(p0, dp, mdT, &md);
+    return checkDubinsPath(d, dp, p0, stx, sty, md.x_, md.y_, t1, mdT) &&
+        checkDubinsPath(d, dp, p0, md.x_, md.y_, ndx, ndy, mdT, t2);
+}
+
+//bool RRTX::checkPartOfLeftCircle(double cntrX, double cntrY, double r, double stx, double sty, double ndx, double ndy) {
+//    double x1 = cntrX + r;
+//    double y1 = cntrY + r;
+//    double x2 = cntrX - r;
+//    double y2 = cntrY - r;
+//    if(stx < x1 && stx > )
+//}
 
 
 #endif //RRTX_RRTX_CPP

@@ -17,11 +17,14 @@ public:
 	void setMap(int, int, bool**);
 	void setCell(int i, int j, bool value);
 	bool cellIsObstacle(int x, int y) const;
+    bool cellIsObstacleIJ(int i, int j) const;
     bool cellIsObstacle1(int x, int y) const;
-	bool isThereLineOfSight(int x0, int y0, int x1, int y1) const;
+    bool cellIsObstacle(double x, double y) const;
+	bool isThereLineOfSight(double x0, double y0, double x1, double y1) const;
     bool getValue(int i, int j) const;
 
-    bool isIn(int x, int y);
+    bool isIn(int i, int j);
+    bool isInXY(double x, double y);
     void setCellXY(int x, int y, bool value);
 
 //    AgentController agent_;

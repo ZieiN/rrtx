@@ -210,6 +210,9 @@ void Dubins::copyState(Point *to, const Point *from) const {
     to->theta_ = from->theta_;
 }
 
+
+
+
 void Dubins::interpolate(const Point *from, const DubinsPath &path, double t, Point *point) const {
     auto *s = new Point(0, 0, from->theta_);
     double seg = t * path.length(), phi, v;

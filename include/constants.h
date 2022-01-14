@@ -14,7 +14,7 @@ using namespace  std;
 //string testFileName = "1";
 //const double M_PI = 3.141592653;
 const double INF = 1e9;
-const double EPS_GOAL = 1;
+const double EPS_GOAL = 0.1;
 const double MX_HEIGHT = 600;
 const double MX_WIDTH = 600;
 const double DELTA = 60;

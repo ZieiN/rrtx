@@ -7,6 +7,7 @@
 #include <fstream>
 #include "../../include/Simplifier/simplifymax.h"
 #include "../../include/Dubins/dubins.h"
+#include <set>
 
 bool PathSimplifier::reduceVertices(vector<Point> &path, unsigned int maxSteps, unsigned int maxEmptySteps,
                                     double rangeRatio) {
@@ -466,7 +467,7 @@ double PathSimplifier::length(vector<Point> &path) {
 bool PathSimplifier::checkMotion(Point &p1, Point &p2) {
     Dubins d(MIN_RADIUS, 0);
     auto path=d.dubins(&p1, &p2);
-
+    return checkDubinsPath(d, path, &p1, p1.x_, p1.y_, p2.x_, p2.y_, 0, 1);
 //    ofstream out;
 //    out.open(string("../output/map1/Dynamics/outSol" + to_string(0) + "-" + to_string(0) +
 //            ".txt").c_str());
@@ -524,4 +525,66 @@ void PathSimplifier::subdivide(vector<Point> &path) {
         newStates.push_back(path[i]);
     }
     path.swap(newStates);
+}
+
+bool
+PathSimplifier::checkDubinsPath(Dubins &d, DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy,
+                                double t1, double t2) {
+    if(abs(int(stx+0.5)-int(ndx+0.5)) + abs(int(sty+0.5)-int(ndy+0.5))<=1 && t2-t1<1-EPS_DOUBLE){
+        set<int> vx = {int(stx+0.5)}, vy = {int(sty+0.5)};
+        if(abs(stx-(int(stx)+0.5))<=EPS_DOUBLE){
+            vx.insert(ceil(stx));vx.insert(floor(stx));
+        }
+        if(abs(ndx-(int(ndx)+0.5))<=EPS_DOUBLE){
+            vx.insert(ceil(ndx));vx.insert(floor(ndx));
+        }
+        if(abs(sty-(int(sty)+0.5))<=EPS_DOUBLE){
+            vy.insert(ceil(sty));vy.insert(floor(sty));
+        }
+        if(abs(ndy-(int(ndy)+0.5))<=EPS_DOUBLE){
+            vy.insert(ceil(ndy));vy.insert(floor(ndy));
+        }
+        for(auto itx:vx){
+            for(auto ity:vy){
+                if(mp_.cellIsObstacle(itx, ity)){
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+//    if(abs(int(stx+0.5)-int(ndx+0.5)) + abs(int(sty+0.5)-int(ndy+0.5))<=1 && t2-t1<1-EPS_DOUBLE){
+//        return !mp_.cellIsObstacle(stx, sty) && !mp_.cellIsObstacle(ndx, ndy);
+//        bool ans =  !mp_.cellIsObstacle(stx, sty);
+//        double tmpx = stx, tmpy = sty;
+//        if(stx < int(stx+0.5))
+//            tmpx = stx-0.5;
+//        else if(stx > int(stx+0.5))
+//            tmpx = stx+0.5;
+//        if(sty < int(sty+0.5))
+//            tmpy = sty-0.5;
+//        else if(sty > int(sty+0.5))
+//            tmpy = sty+0.5;
+//        ans = ans && !mp_.cellIsObstacle(tmpx, sty) && !mp_.cellIsObstacle(stx, tmpy) && !mp_.cellIsObstacle(tmpx, tmpy);
+//        if((int(stx+0.5) != int(ndx+0.5)) || (int(sty+0.5) != int(ndy+0.5))){
+//            ans = ans && !mp_.cellIsObstacle(ndx, ndy);
+//
+//            tmpx = ndx, tmpy = ndy;
+//            if(ndx < int(ndx+0.5))
+//                tmpx = ndx-0.5;
+//            else if(ndx > int(ndx+0.5))
+//                tmpx = ndx+0.5;
+//            if(ndy < int(ndy+0.5))
+//                tmpy = ndy-0.5;
+//            else if(ndy > int(ndy+0.5))
+//                tmpy = ndy+0.5;
+//            ans = ans && !mp_.cellIsObstacle(tmpx, ndy) && !mp_.cellIsObstacle(ndx, tmpy) && !mp_.cellIsObstacle(tmpx, tmpy);
+//        }
+//        return ans;
+//    }
+    Point md;
+    double mdT = (t1+t2)/2.0;
+    d.interpolate(p0, dp, mdT, &md);
+    return checkDubinsPath(d, dp, p0, stx, sty, md.x_, md.y_, t1, mdT) &&
+           checkDubinsPath(d, dp, p0, md.x_, md.y_, ndx, ndy, mdT, t2);
 }

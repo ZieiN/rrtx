@@ -42,6 +42,7 @@ protected:
     double length(vector<Point> &path);
     Map mp_;
     bool checkMotion(Point &p1, Point &p2);
+    bool checkDubinsPath(Dubins &d, DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy, double t1, double t2);
     double distance(Point &p1, Point &p2);
 
     void copyState(Point *to, Point *from);

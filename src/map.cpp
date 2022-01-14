@@ -1,6 +1,7 @@
 #include "../include/map.h"
 #include "../include/Dubins/dubins.h"
 #include <cmath>
+#include <set>
 #include <algorithm>
 #include <iostream>
 
@@ -126,7 +127,7 @@ bool Map::cellIsObstacle(int x, int y) const{
 //    }
 //    return false;
 //}
-bool Map::isThereLineOfSight(int x0, int y0, int x1, int y1) const
+bool Map::isThereLineOfSight(double x0, double y0, double x1, double y1) const
 {
     int steep = abs(y1 - y0) > abs(x1 - x0) ;
     if (steep)
@@ -147,14 +148,14 @@ bool Map::isThereLineOfSight(int x0, int y0, int x1, int y1) const
         gradient = 0;
     else
         gradient = dy / dx;
-    int xpxl1 = x0;
-    int xpxl2 = x1;
+    double xpxl1 = x0;
+    double xpxl2 = x1;
     float intersectY = y0 + 0.5;
     if (steep)
     {
         
         if(y1<y0){
-            for (int x = xpxl1 ; x < xpxl2 ; x++)
+            for (double x = xpxl1 ; x < xpxl2 ; x++)
             {
                 double realPart = intersectY-int(intersectY);
                 if(cellIsObstacle(intersectY, x))
@@ -173,7 +174,7 @@ bool Map::isThereLineOfSight(int x0, int y0, int x1, int y1) const
             }
         }
         else{
-            for (int x = xpxl1 ; x < xpxl2 ; x++)
+            for (double x = xpxl1 ; x < xpxl2 ; x++)
             {
                 double realPart = intersectY-int(intersectY);
                 if(cellIsObstacle(intersectY, x))
@@ -195,7 +196,7 @@ bool Map::isThereLineOfSight(int x0, int y0, int x1, int y1) const
     else
     {
         if(y1<y0){
-            for (int x = xpxl1 ; x < xpxl2 ; x++)
+            for (double x = xpxl1 ; x < xpxl2 ; x++)
             {
                 double realPart = intersectY-int(intersectY);
                 if(cellIsObstacle(x, intersectY))
@@ -214,7 +215,7 @@ bool Map::isThereLineOfSight(int x0, int y0, int x1, int y1) const
             }
         }
         else{
-            for (int x = xpxl1 ; x < xpxl2 ; x++)
+            for (double x = xpxl1 ; x < xpxl2 ; x++)
             {
                 double realPart = intersectY-int(intersectY);
                 if(cellIsObstacle(x, intersectY))
@@ -240,6 +241,26 @@ bool Map::getValue(int i, int j) const {
     return cell_[i][j];
 }
 
-bool Map::isIn(int x, int y) {
-    return x >= 0 && x < width_ && y >= 0 && y < height_;
+bool Map::isIn(int i, int j) {
+    return i >= 0 && i < width_ && j >= 0 && j < height_;
+}
+
+bool Map::cellIsObstacle(double x, double y) const {
+    set<int> sx={int(x+0.5+EPS_DOUBLE), int(x+0.5-EPS_DOUBLE)}, sy={int(y+0.5+EPS_DOUBLE), int(y+0.5-EPS_DOUBLE)};
+    bool ans = false;
+    for(auto xx:sx){
+        for(auto yy:sy){
+            ans = ans || cellIsObstacle(xx, yy);
+        }
+    }
+    return ans;
+//    return cellIsObstacle(int(x+0.5), int(y+0.5)) && cellIsObstacle(int(x+EPS_DOUBLE+0.5))
+}
+
+bool Map::isInXY(double x, double y) {
+    return isIn((height_-1-int(y+0.5)), int(x+0.5));
+}
+
+bool Map::cellIsObstacleIJ(int i, int j) const {
+    return cell_[i][j];
 }
