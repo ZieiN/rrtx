@@ -49,8 +49,9 @@ Point RRTX::randomNode() {
         counterAddPath += 10;
         return guidePath[(int)(guidePath.size())-1-counterAddPath-10];
     }
-     random_device rd;
-//    static int cnt = 0;
+    random_device rd;
+//    static int cnt = 110;
+//    mt19937 mt(cnt++);
      mt19937 mt(rd());
     uniform_real_distribution<double> randForStartPoint(0, 1);
     if (randForStartPoint(mt) < probability_SAMPLE_START_NODE) {
@@ -939,6 +940,7 @@ void RRTX::updatePath() {
         PathSimplifier ps(mp_);
         ps.simplifyMax(path);
         double diffTime1 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+        finalPath.push_back(path[0]);
         for(int i=0; i+1<path.size(); ++i){
             auto it = path[i], it1 = path[i+1];
             vector<Point> v;
