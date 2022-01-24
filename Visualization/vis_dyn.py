@@ -68,7 +68,7 @@ for imageNm in range(1,4):
             f.close
         solPathX = []
         solPathY = []
-        for id1 in range(120, len(shiftsX)-1):
+        for id1 in range(0, len(shiftsX)-1):
             pl.clf()
             pl.axis('equal')
             pl.plot([0, 0, 600, 600, 0], [600, 0, 0, 600, 600], "r-")

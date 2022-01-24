@@ -54,7 +54,9 @@ Point moveRobot(ofstream &out, RRTX rrtx, string fileName){
         }
         ofstream out1;
         out1.open(fileName.c_str());
-        out<< measureDistraction(oldPath, path, out1)<<endl;
+        double dis = measureDistraction(oldPath, path, out1);
+        out<< dis <<endl;
+        cout<<dis<<endl;
         oldPath.clear();
         for(int i=tmp; i<min(tmp+NUMBER_POINTS_TO_COMPARE, (int)path.size()); ++i){
             oldPath.push_back(Point(path[i].x_-(path[tmp].x_-rrtx.startPoint_.x_),path[i].y_-(path[tmp].y_-rrtx.startPoint_.y_), path[i].theta_));
@@ -198,6 +200,10 @@ int main() {
                 auto mp = addDynamicObstacles(rrtx, "../input/map" + imageName + "/image.txt", i, shX, shY);
                 auto startTime = high_resolution_clock::now();
                 rrtx.startPoint_.x_ += shift.x_-shiftMapX; rrtx.startPoint_.y_ += shift.y_-shiftMapY;
+                for(auto &it:oldPath){
+                    it.x_+=shift.x_-shiftMapX;
+                    it.y_+=shift.y_-shiftMapY;
+                }
                 rrtx.moveRobot(shiftMapX, shiftMapY, shift.theta_);
                 rrtx.updateMap(mp);
                 outShifts<<shX<<" "<<shY<<" "<<shX1<<" "<<shY1<<endl;

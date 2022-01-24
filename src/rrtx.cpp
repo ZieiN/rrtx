@@ -929,7 +929,7 @@ void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, doubl
     auto path=dubins_.dubins(&v1, &v2);
     vector<Point> v;
     int timeSteps = dubins_.distance(path)/step+2;
-    for(int i=1; i<=timeSteps; ++i){
+    for(int i=0; i<=timeSteps; ++i){
         Point p;
         dubins_.interpolate(&v1, path, (double)i/timeSteps, &p);
         trajectory.push_back(p);
@@ -1161,7 +1161,7 @@ void RRTX::addEdge(Node *n1, pair<Node *, DubinsPath> n2, bool direction) {
 void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, DubinsPath &dubinsPath, double step) {
     vector<Point> v;
     int timeSteps = dubins_.distance(dubinsPath)/step+2;
-    for(int i=1; i<=timeSteps; ++i){
+    for(int i=0; i<=timeSteps; ++i){
         Point p;
         dubins_.interpolate(&v1, dubinsPath, (double)i/timeSteps, &p);
         trajectory.push_back(p);
