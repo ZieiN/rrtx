@@ -11,8 +11,6 @@ const double STEP = 0.1; // length of each step
 const int NUMBER_POINTS_TO_COMPARE = 200; //  total compare length = NUMBER_POINTS_TO_COMPARE * STEP
 
 double measureDistraction(vector<Point> &oldPath, vector<Point> &path, ofstream &out){
-    if(oldPath.size()==0)
-        return -1;
     double ans = 0;
     int sz = min(oldPath.size(), path.size());
 //    cout<<"sz="<<sz<<endl;
@@ -30,6 +28,8 @@ double measureDistraction(vector<Point> &oldPath, vector<Point> &path, ofstream 
     for(int i=sz; i<path.size(); ++i){
         out<<path[i].x_<<" "<<path[i].y_<<endl;
     }
+    if(oldPath.size()==0)
+        return -1;
 //    cout<<ans/(double)sz<<endl;
     return ans/(double)(sz);
 }
@@ -175,14 +175,11 @@ int main() {
             outShifts.open(shiftFile.c_str());
             outDistraction.open(distractionFile.c_str());
             double shX = 0, shY = 0, shX1 = 0, shY1 = 0;
-//            if(imageNum>1)break;
-            for (int i = 0; i < 150 && rrtx.distanceFunction(rrtx.goal_, rrtx.startPoint_)>1; ++i) {
-//                if((i>=18 && cnt>=1)||cnt>1)break;
-//            rrtx.moveObstacles("../input/map"+imageName+"/image.txt", i);
+            for (int i = 0; i < 150 && rrtx.distanceFunction(rrtx.goal_, rrtx.startPoint_)>EPS_GOAL; ++i) {
                 cerr<<imageNum<<" "<<cnt<<" "<<i<<"::";
                 auto shift = moveRobot(outDistraction, rrtx, "../output/map" + imageName + "/Dynamics/outSol" + to_string(cnt) + "-" + to_string(i) +
                                                              ".txt");
-                cout<<shift.x_<<" "<<shift.y_<<endl;
+                cout<<fixed<<setprecision(3)<<shift.x_<<" "<<shift.y_<<endl;
                 int shiftMapX, shiftMapY;
                 if(rrtx.startPoint_.x_ > 299){
                     shiftMapX = ceil(shift.x_);
@@ -201,12 +198,6 @@ int main() {
                 auto mp = addDynamicObstacles(rrtx, "../input/map" + imageName + "/image.txt", i, shX, shY);
                 auto startTime = high_resolution_clock::now();
                 rrtx.startPoint_.x_ += shift.x_-shiftMapX; rrtx.startPoint_.y_ += shift.y_-shiftMapY;
-                for(auto &it:oldPath){
-                    it.x_+=shift.x_-shiftMapX;
-                    it.y_+=shift.y_-shiftMapY;
-                }
-//                cout<<shiftMapX<<" "<<shiftMapY<<" "<<shift.x_-shiftMapX<<" "<<shift.y_-shiftMapY<<" "
-//                <<rrtx.startPoint_.x_<<" "<<rrtx.startPoint_.y_<<endl;
                 rrtx.moveRobot(shiftMapX, shiftMapY, shift.theta_);
                 rrtx.updateMap(mp);
                 outShifts<<shX<<" "<<shY<<" "<<shX1<<" "<<shY1<<endl;
@@ -215,18 +206,16 @@ int main() {
                 rrtx.search();
                 auto diffTime2 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
                 outTime <<diffTime1<<" "<< diffTime2 << endl;
-                cout <<diffTime1/1000.0<<" "<< diffTime2/1000.0 << endl;
+                cout<<fixed<<setprecision(3) <<diffTime1/1000.0<<" "<< diffTime2/1000.0 << " n_nodes=" <<rrtx.nodes_.size()<<",n_edges="<<rrtx.edges.size()<< endl;
                 rrtx.drawTree("../output/map" + imageName + "/Dynamics/outTree" + to_string(cnt) + "-" + to_string(i) +
                               ".txt");
 //                rrtx.drawSolution(
 //                        "../output/map" + imageName + "/Dynamics/outSol" + to_string(cnt) + "-" + to_string(i) +
 //                        ".txt");
-//                outDistraction<<measureDistraction(oldPath, rrtx.finalPath)<<endl;
                 rrtx.drawMap("../output/map" + imageName + "/Dynamics/outMap" + to_string(cnt) + "-" + to_string(i) +
                              ".txt");
 
             }
-//            moveRobot(outDistraction, rrtx);
             outShifts.close();
             outDistraction.close();
 //            break;

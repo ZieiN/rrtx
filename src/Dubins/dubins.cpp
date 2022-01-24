@@ -3,6 +3,8 @@
 //
 
 #include <cmath>
+#include <iostream>
+#include <algorithm>
 #include "../../include/Dubins/dubins.h"
 
 DubinsPath Dubins::dubins(const Point *s1, const Point *s2) const{
@@ -69,7 +71,7 @@ DubinsPath dubinsLSL(double d, double alpha, double beta)
     {
         double theta = atan2(cb - ca, d + sa - sb);
         double t = mod2pi(-alpha + theta);
-        double p = sqrt(std::max(tmp, 0.));
+        double p = sqrt(std::max(tmp, (double)0.));
         double q = mod2pi(beta - theta);
 //        assert(fabs(p * cos(alpha + t) - sa + sb - d) < 2 * DUBINS_EPS);
 //        assert(fabs(p * sin(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
@@ -87,7 +89,7 @@ DubinsPath dubinsRSR(double d, double alpha, double beta)
     {
         double theta = atan2(ca - cb, d - sa + sb);
         double t = mod2pi(alpha - theta);
-        double p = sqrt(std::max(tmp, 0.));
+        double p = sqrt(std::max(tmp, (double)0.));
         double q = mod2pi(-beta + theta);
 //        assert(fabs(p * cos(alpha - t) + sa - sb - d) < 2* DUBINS_EPS);
 //        assert(fabs(p * sin(alpha - t) - ca + cb) < 2 * DUBINS_EPS);
@@ -103,7 +105,7 @@ DubinsPath dubinsRSL(double d, double alpha, double beta)
     double tmp = d * d - 2. + 2. * (ca * cb + sa * sb - d * (sa + sb));
     if (tmp >= DUBINS_ZERO)
     {
-        double p = sqrt(std::max(tmp, 0.));
+        double p = sqrt(std::max(tmp, (double)0.));
         double theta = atan2(ca + cb, d - sa - sb) - atan2(2., p);
         double t = mod2pi(alpha - theta);
         double q = mod2pi(beta - theta);
@@ -121,7 +123,7 @@ DubinsPath dubinsLSR(double d, double alpha, double beta)
     double tmp = -2. + d * d + 2. * (ca * cb + sa * sb + d * (sa + sb));
     if (tmp >= DUBINS_ZERO)
     {
-        double p = sqrt(std::max(tmp, 0.));
+        double p = sqrt(std::max(tmp, (double)0.));
         double theta = atan2(-ca - cb, d + sa + sb) - atan2(-2., p);
         double t = mod2pi(-alpha + theta);
         double q = mod2pi(-beta + theta);
@@ -161,14 +163,72 @@ DubinsPath dubinsLRL(double d, double alpha, double beta)
         double theta = atan2(-ca + cb, d + sa - sb);
         double t = mod2pi(-alpha + theta + .5 * p);
         double q = mod2pi(beta - alpha - t + p);
-        assert(fabs(-2. * sin(alpha + t - p) + 2. * sin(alpha + t) - d - sa + sb) < 2 * DUBINS_EPS);
-        assert(fabs(2. * cos(alpha + t - p) - 2. * cos(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
-        assert(mod2pi(alpha + t - p + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
+//        assert(fabs(-2. * sin(alpha + t - p) + 2. * sin(alpha + t) - d - sa + sb) < 2 * DUBINS_EPS);
+//        assert(fabs(2. * cos(alpha + t - p) - 2. * cos(alpha + t) + ca - cb) < 2 * DUBINS_EPS);
+//        assert(mod2pi(alpha + t - p + q - beta + .5 * DUBINS_EPS) < DUBINS_EPS);
         return DubinsPath(dubinsPathType[5], t, p, q);
     }
     return {};
 }
 DubinsPath Dubins::dubins(double d, double alpha, double beta) const{
+//    if (d < DUBINS_EPS && fabs(alpha - beta) < DUBINS_EPS)
+//        return {dubinsPathType[0], 0, d, 0};
+//
+//    DubinsPath path(dubinsLSL(d, alpha, beta)), tmp(dubinsRSR(d, alpha, beta));
+//    double len, minLength = path.length();
+//    vector<DubinsPath> v;
+//    vector<pair<double, int>> v1;
+//    v.push_back(path);v1.push_back({path.length(), 0});
+//    v.push_back(tmp);v1.push_back({tmp.length(),1});
+//    tmp = dubinsRSL(d, alpha, beta);
+//    v.push_back(tmp); v1.push_back({tmp.length(), 2});
+//    tmp = dubinsLSR(d, alpha, beta);
+//    v.push_back(tmp); v1.push_back({tmp.length(), 3});
+//    tmp = dubinsRLR(d, alpha, beta);
+//    v.push_back(tmp); v1.push_back({tmp.length(), 4});
+//    tmp = dubinsLRL(d, alpha, beta);
+//    v.push_back(tmp); v1.push_back({tmp.length(), 5});
+//    sort(v1.begin(), v1.end());
+////    for(auto it:v1){
+////        cout<<fixed<<setprecision(3)<<it.first<<" ";
+////    }cout<<fixed<<setprecision(3)<<endl;
+//    path = v[v1[0].second];
+////    cout<<fixed<<setprecision(3)<<tmp.length()<<" "<<path.length()<<" ";
+////    if ((len = tmp.length()) < minLength)
+////    {
+////        minLength = len;
+////        path = tmp;
+////    }
+////    auto tmp4 = dubinsRSL(d, alpha, beta);
+//////    cout<<fixed<<setprecision(3)<<tmp.length()<<" ";
+////    if ((len = tmp4.length()) < minLength)
+////    {
+////        minLength = len;
+////        path = tmp4;
+////    }
+////    auto tmp3 = dubinsLSR(d, alpha, beta);
+//////    cout<<fixed<<setprecision(3)<<tmp.length()<<" ";
+////    if ((len = tmp3.length()) < minLength)
+////    {
+////        minLength = len;
+////        path = tmp3;
+////    }
+////    auto tmp2 = dubinsRLR(d, alpha, beta);
+//////    cout<<fixed<<setprecision(3)<<tmp.length()<<" ";
+////    if ((len = tmp2.length()) < minLength)
+////    {
+////        minLength = len;
+////        path = tmp2;
+////    }
+////    auto tmp1 = dubinsLRL(d, alpha, beta);
+//////    cout<<fixed<<setprecision(3)<<tmp.length()<<endl;
+////    if ((len = tmp1.length()) < minLength) {
+////        path = tmp1;
+////        minLength = len;
+////    }
+////    cout<<fixed<<setprecision(3)<<path.length()<<endl;
+//    return path;
+
     if (d < DUBINS_EPS && fabs(alpha - beta) < DUBINS_EPS)
         return {dubinsPathType[0], 0, d, 0};
 
@@ -267,4 +327,8 @@ void Dubins::interpolate(const Point *from, const DubinsPath &path, double t, Po
     point->setY(s->getY() * rho_ + from->getY());
     point->setTheta_(s->getTheta());
     delete s;
+}
+
+double Dubins::distance(const DubinsPath &dp) const {
+    return rho_*dp.length();
 }

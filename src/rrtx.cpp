@@ -18,6 +18,11 @@ RRTX::RRTX() {
     updatePathNeeded = false;
     flagPlanNearOldPath = false;
     guidePathDefined = false;
+    edges.clear();
+    dubins_ = Dubins(MIN_RADIUS, 0);
+    for(int i=0; i<MX_WIDTH; ++i)
+        passedEdges[i].clear();
+    shiftX_ = shiftY_ = 0;
 }
 
 RRTX::RRTX(Point start, Point goal) {
@@ -29,30 +34,30 @@ RRTX::RRTX(Point start, Point goal) {
     guidePathDefined = false;
     startPoint_ = start;
     goal_ = goal;
+    shiftX_ = shiftY_ = 0;
+    dubins_ = Dubins(MIN_RADIUS, 0);
     initializeTree();
 }
 
-bool operator<(pair<pair<double, double>, Node *> a, pair<pair<double, double>, Node *> b) {
-    return a.first.first > b.first.first || (a.first.first == b.first.first && a.first.second > b.first.second);
+//bool operator<(pair<pair<double, double>, Node *> a, pair<pair<double, double>, Node *> b) {
+//    return a.first.first > b.first.first || (a.first.first == b.first.first && a.first.second > b.first.second);
+//}
+bool operator < (const std::_List_iterator<std::pair<std::pair<Node*, Node*>, pair<DubinsPath, std::pair<bool, int> > > > a, const std::_List_iterator<std::pair<std::pair<Node*, Node*>, pair<DubinsPath, std::pair<bool, int> > > > b){
+    if(a->first.first == b->first.first)return a->first.second < b->first.second;
+    return a->first.first < b->first.first;
 }
-
+bool operator < (const DubinsPath dp1, const DubinsPath dp2){
+    return dp1.type_ < dp2.type_;
+}
 Point RRTX::randomNode() {
-//    double probability = rand() / (double) RAND_MAX;
-//    if (probability < probability_SAMPLE_START_NODE) {
-//        return startPoint_;
-//    }
-//    double x = rand() / (double) RAND_MAX * MX_HEIGHT;
-//    double y = rand() / (double) RAND_MAX * MX_WIDTH;
-//    double theta = rand() / (double) RAND_MAX * 2*M_PI;
-//    return Point(x, y, theta);
     if(guidePathDefined && counterAddPath < guidePath.size()){
         counterAddPath += 10;
         return guidePath[(int)(guidePath.size())-1-counterAddPath-10];
     }
     random_device rd;
-//    static int cnt = 110;
+//    static int cnt = 0;
 //    mt19937 mt(cnt++);
-     mt19937 mt(rd());
+    mt19937 mt(rd());
     uniform_real_distribution<double> randForStartPoint(0, 1);
     if (randForStartPoint(mt) < probability_SAMPLE_START_NODE) {
         return startPoint_;
@@ -66,6 +71,9 @@ Point RRTX::randomNode() {
          double ang = randAng(mt);
          double x = guidePath[id].x_+rad*cos(ang);
          double y = guidePath[id].y_+rad*sin(ang);
+//         x = int(x*1000)/1000.0;
+//         y = int(y*1000)/1000.0;
+//         ang = int(ang*1000)/1000.0;
          return Point(x, y, ang);
      }
      else {
@@ -73,7 +81,13 @@ Point RRTX::randomNode() {
          uniform_real_distribution<double> randWidth(0, MX_WIDTH);
          uniform_real_distribution<double> randOrientation(0, 2 * M_PI);
          uniform_real_distribution<double> randForStartPoint(0, 1);
-         return Point(randWidth(mt), randHeight(mt), randOrientation(mt));
+         double x = randWidth(mt);
+         double y = randHeight(mt);
+         double theta = randOrientation(mt);
+//         x = int(x*1000)/1000.0;
+//         y = int(y*1000)/1000.0;
+//         theta = int(theta*1000)/1000.0;
+         return Point(x, y, theta);
      }
 }
 
@@ -82,7 +96,7 @@ void RRTX::shrinkingBallRadius() {
 }
 
 bool RRTX::extend(Node &v) {
-    list<Node *> vNear = near(v);
+    list<pair<Node *, DubinsPath>> vNear = near(v);
     findParent(v, vNear);
     if (v.parent_ == NULL) {
         return false;
@@ -90,53 +104,54 @@ bool RRTX::extend(Node &v) {
     auto it = nodes_.insert(nodes_.end(), v);
     Node *vItr = &(*it);
     vItr->selfItr_ = v.selfItr_ = vItr;
-//    assert(&(*vItr) == vItr->selfItr_);
+    assert(&(*vItr) == vItr->selfItr_);
     if(deletedNodes_.find(vItr->selfItr_)!=deletedNodes_.end()){
         deletedNodes_.erase(vItr->selfItr_);
     }
     v.parent_->children_.insert(vItr);
     for (auto &it: vNear) {
-        if (steer(vItr->pnt_, it->pnt_)) {
-            vItr->NPlus0_.insert(it->selfItr_);
-            (it->selfItr_)->NMinusR_.insert(vItr);
-        }
-        if (steer(it->pnt_, v.pnt_)) {
-            (it->selfItr_)->NPlusR_.insert(vItr->selfItr_);
-            vItr->NMinus0_.insert(it->selfItr_);
+
+        assert (checkDubinsPath(it.second, vItr->pnt_, it.first->pnt_));
+        addEdge(vItr, {it.first, it.second}, 0);
+
+        auto steerResult = steer(it.first->pnt_, vItr->pnt_);
+        if(steerResult.first) {
+            addEdge(it.first, {vItr, steerResult.second}, 1);
         }
     }
     return true;
 }
 
-list<Node *> RRTX::near(Node &v) {
-    list<Node *> ans;
+list<pair<Node *, DubinsPath>> RRTX::near(Node &v) {
+    list<pair<Node *, DubinsPath>> ans;
     for (auto &it: nodes_) {
         /// because I want to add the orphans to 'near'-set so they can be rewired.
         // if(it.parent_ == NULL)
         //     continue;
         if (distanceFunction(v.pnt_, it.pnt_) <= radius_) {
-            if(steer(v.pnt_, it.pnt_)) {
-                ans.push_back(it.selfItr_);
+            auto steerResult = steer(v.pnt_, it.pnt_);
+            if(steerResult.first) {
+                ans.push_back({it.selfItr_, steerResult.second});
             }
         }
     }
     return ans;
 }
 
-void RRTX::findParent(Node &v, list<Node *> &vNear) {
+void RRTX::findParent(Node &v, list<pair<Node *, DubinsPath>> &vNear) {
     // we prune the neighbor set here, in addition to find the parent.
     if(vNear.empty()) {
         return;
     }
-    vector<pair<double, Node*>> vectorNeighbors;
+    vector<pair<double, pair<Node *, DubinsPath>>> vectorNeighbors;
     for (auto &it: vNear) {
-        double costTransition = distanceBySteerFunction(v.pnt_, it->pnt_);
-        vectorNeighbors.emplace_back(costTransition+it->lmc_, it);
-//        assert(steer(v.pnt_, it->pnt_));
-//        if (costTransition + it->lmc_ < v.lmc_) {
-//            v.parent_ = it->selfItr_;
-//            v.lmc_ = costTransition + it->lmc_;
-//        }
+        auto costTransition = dubins_.distance(it.second);
+        vectorNeighbors.emplace_back(costTransition+it.first->lmc_, it);
+        if (costTransition + it.first->lmc_ < v.lmc_) {
+            v.parent_ = it.first->selfItr_;
+            v.lmc_ = costTransition + it.first->lmc_;
+            v.pathToParent_ = it.second;
+        }
     }
     sort(vectorNeighbors.begin(), vectorNeighbors.end());
     if(vNear.size()>MAX_NUM_NEIGHNORS){
@@ -145,62 +160,28 @@ void RRTX::findParent(Node &v, list<Node *> &vNear) {
             vNear.push_back(vectorNeighbors[i].second);
         }
     }
-//    cout<<v.pnt_.x_<<","<<v.pnt_.y_<<","<<v.pnt_.theta_<<"::";
-//    for(auto it:vNear){
-//        cout<<it->pnt_.x_<<","<<it->pnt_.y_<<" ";
-//        assert(steer(v.pnt_, it->pnt_));
-//    }cout<<endl;
-    if(vectorNeighbors[0].first < v.lmc_) {
-        v.parent_ = vectorNeighbors[0].second->selfItr_;
-        v.lmc_ = vectorNeighbors[0].first;
-    }
 }
 
 double RRTX::distanceFunction(Point &v1, Point &v2) {
     return hypot(v1.x_ - v2.x_, v1.y_ - v2.y_);
 }
 
-bool RRTX::steer(Point v1, Point &v2) {
-    auto startTime = high_resolution_clock::now();
-    Dubins d(MIN_RADIUS, 0);
-    auto path=d.dubins(&v1, &v2);
-    return checkDubinsPath(d, path, &v1, v1.x_, v1.y_, v2.x_, v2.y_, 0, 1);
-    vector<Point> v;
-    int numOfTimeSteps = d.distance(&v1, &v2)+1;
-//    cerr<<numOfTimeSteps<<endl;
-    double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-//    cerr << "Time to create dubins " << diffTime / 1000.0 << "ms" << endl;
-    for(int i=1; i<=numOfTimeSteps; ++i){
-        Point p;
-        d.interpolate(&v1, path, (double)i/numOfTimeSteps, &p);
-        if(mp_.cellIsObstacle(p.x_, p.y_)) {
-
-            double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-//            cerr << "Time to update steer " << diffTime / 1000.0 << "ms" << endl;
-            return false;
-        }
-//        v.push_back(p);
-    }
-
-    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-//    cerr << "Time to update the steerBig " << diffTime/1000.0 << "ms" << endl;
-    return true;
-//    AgentState startState, goal;
-//    startState.pos = {v1.x_, v1.y_};
-//    startState.theta = v1.theta_;
-//    goal.pos = {v2.x_, v2.y_};
-//    goal.theta = v2.theta_;
-//    mp_.agent_.SetState(startState);
-//    mp_.agent_.SetGoal(goal);
-//    vector<AgentState> v;
-//    while(mp_.agent_.Update(v)){
-//        if(mp_.cellIsObstacle(v.back().pos.first, v.back().pos.second))
-//            return false;
-//    }
-//    return true;
+pair<bool, DubinsPath> RRTX::steer(Point v1, Point &v2) {
+    auto path=dubins_.dubins(&v1, &v2);
+//    cout<<fixed<<setprecision(3)<<v1.x_+shiftX_<<" "<<v1.y_+shiftY_<<" "<<v2.x_+shiftX_<<" "<<v2.y_+shiftY_<<" "<<v1.theta_<<" "<<v2.theta_<<endl;
+//    for(double i=0; i<=1; i+=0.05){
+//        Point tmp;
+//        dubins_.interpolate(&v1, path, i, &tmp);
+//        cout<<fixed<<setprecision(3)<<tmp.x_<<" "<<tmp.y_<<" ";
+//    }cout<<fixed<<setprecision(3)<<endl;
+//    cout<<fixed<<setprecision(3)<<hypot(v1.x_-v2.x_, v1.y_-v2.y_)<<" "<<path.length()<<" "<<path.length_[0]<<" "<<path.length_[1]<<" "<<path.length_[2]<<endl;
+//    for(int i=0; i<3; ++i)cout<<fixed<<setprecision(3)<<path.type_[i]<<" ";cout<<fixed<<setprecision(3)<<endl;
+//    assert(hypot(v1.x_-v2.x_, v1.y_-v2.y_)<=path.length());
+    bool flag = checkDubinsPath(path, &v1, v1.x_, v1.y_, v2.x_, v2.y_, 0, 1);
+    return {flag, path};
 }
 
-
+/*
 void RRTX::checkForAppearedObstacles(){
 //    int sm = nodes_.size();
     for (auto it = nodes_.begin(); it != nodes_.end(); ++it) {
@@ -297,8 +278,9 @@ void RRTX::checkForAppearedObstacles(){
 ////        cerr << "Time to update the map3-4 " << diffTime/1000.0 << "ms" << endl;
 //        startTime = high_resolution_clock::now();
     }
-//    cout<<"SUM = "<<sm<<endl;
+//    cout<<fixed<<setprecision(3)<<"SUM = "<<sm<<endl;
 }
+*/
 
 void RRTX::addAllChildren(Node *vItr) {
 //    assert(deletedNodes_.find(vItr)==deletedNodes_.end());
@@ -316,12 +298,12 @@ void RRTX::propagateDescendants() {
     }
     for (auto &it: orphans_) {
         for (auto it1: it->NPlusR_) {
-            it1->g_ = INF;
-            verifyQueue(it1);
+            it1.first->g_ = INF;
+            verifyQueue(it1.first);
         }
         for (auto it1: it->NPlus0_) {
-            it1->g_ = INF;
-            verifyQueue(it1);
+            it1.first->g_ = INF;
+            verifyQueue(it1.first);
         }
         if (vBotIsAdded_) {
             if (vBot_ == it) {
@@ -362,13 +344,13 @@ void RRTX::drawSolution(string fileName) {
 void RRTX::cullNeighbors(Node *&vItr) {
     for (auto it = vItr->NPlusR_.begin(); it != vItr->NPlusR_.end();) {
 //        assert(*it != NULL);
-        if ((*it)->selfItr_ == vItr->parent_ || distanceFunction((*it)->pnt_, vItr->pnt_)<=radius_) {
+        if (it->first->selfItr_ == vItr->parent_ || distanceFunction(it->first->pnt_, vItr->pnt_)<=radius_) {
             ++it;
             continue;
         }
         auto it1 = it;
         ++it;
-        (*it1)->NMinus0_.erase(vItr);
+        it1->first->NMinus0_.erase({vItr, it1->second});
         vItr->NPlusR_.erase(it1);
     }
 }
@@ -377,28 +359,30 @@ void RRTX::cullNeighbors(Node *&vItr) {
 void RRTX::updateLMC(Node *vItr) {
     cullNeighbors(vItr);
     for (auto &it: vItr->NPlus0_) {
-        if (it->parent_ == vItr) {
+        if (it.first->parent_ == vItr) {
             continue;
         }
         if (/* steer(vItr->pnt_, it->pnt_) &&*/
-        vItr->lmc_ > distanceBySteerFunction(vItr->pnt_, it->pnt_) + it->lmc_ && orphans_.find(it)==orphans_.end()) {
-            vItr->lmc_ = distanceBySteerFunction(vItr->pnt_, it->pnt_) + it->lmc_;
+        vItr->lmc_ > dubins_.distance(it.second) + it.first->lmc_ && orphans_.find(it.first)==orphans_.end()) {
+            vItr->lmc_ = distanceBySteerFunction(vItr->pnt_, it.first->pnt_) + it.first->lmc_;
             if (vItr->parent_ != NULL)
                 (vItr->parent_)->children_.erase(vItr->selfItr_);
-            vItr->parent_ = it->selfItr_;
+            vItr->parent_ = it.first->selfItr_;
+            vItr->pathToParent_ = it.second;
             (vItr->parent_)->children_.insert(vItr->selfItr_);
         }
     }
     for (auto &it: vItr->NPlusR_) {
-        if (it->parent_ == vItr) {
+        if (it.first->parent_ == vItr) {
             continue;
         }
         if (/*steer(vItr->pnt_, it->pnt_) && */
-        vItr->lmc_ > distanceBySteerFunction(vItr->pnt_, it->pnt_) + it->lmc_ && orphans_.find(it)==orphans_.end()) {
-            vItr->lmc_ = distanceBySteerFunction(vItr->pnt_, it->pnt_) + it->lmc_;
+        vItr->lmc_ > dubins_.distance(it.second) + it.first->lmc_ && orphans_.find(it.first)==orphans_.end()) {
+            vItr->lmc_ = distanceBySteerFunction(vItr->pnt_, it.first->pnt_) + it.first->lmc_;
             if (vItr->parent_ != NULL)
                 (vItr->parent_)->children_.erase(vItr->selfItr_);
-            vItr->parent_ = it->selfItr_;
+            vItr->parent_ = it.first->selfItr_;
+            vItr->pathToParent_ = it.second;
             (vItr->parent_)->children_.insert(vItr->selfItr_);
         }
     }
@@ -408,6 +392,7 @@ void RRTX::updateLMC(Node *vItr) {
 // For all nodes in the queue, if their difference (g-lmc) is bigger than delta,
 // then update the lmc for the best value and then assign it to g_.
 void RRTX::reduceInconsistency() {
+//    cout<<fixed<<setprecision(3)<<qRewiring_.size()<<endl;
     while (!qRewiring_.empty()) {
         auto tp = qRewiring_.top();
         qRewiring_.pop();
@@ -440,71 +425,61 @@ void RRTX::rewireNeighbors(Node* &vItr) {
     if (vItr->g_ - vItr->lmc_ > EPS) {
         cullNeighbors(vItr);
         for (auto &it: vItr->NMinus0_) {
-            if (it->selfItr_ == vItr->parent_)
+            if (it.first->selfItr_ == vItr->parent_)
                 continue;
-            if (steer(it->pnt_, vItr->pnt_) && it->lmc_ > distanceBySteerFunction(it->pnt_, vItr->pnt_) + (vItr->lmc_)) {
-                it->lmc_ = distanceBySteerFunction(it->pnt_, vItr->pnt_) + vItr->lmc_;
-                if (it->parent_ != NULL)
-                    (it->parent_)->children_.erase(it->selfItr_);
-                it->parent_ = vItr->selfItr_;
-                it->parent_->children_.insert(it->selfItr_);
-                if (hypot(it->pnt_.x_ - startPoint_.x_, it->pnt_.y_ - startPoint_.y_) < EPS_DOUBLE) {
-                    vBotIsAdded_ = true;
-                    updatePathNeeded = true;
-                    vBot_ = it->selfItr_;
+            if (it.first->lmc_ > dubins_.distance(it.second) + (vItr->lmc_)) {
+                it.first->lmc_ = dubins_.distance(it.second) + vItr->lmc_;
+                if (it.first->parent_ != NULL)
+                    (it.first->parent_)->children_.erase(it.first->selfItr_);
+                it.first->parent_ = vItr->selfItr_;
+                it.first->pathToParent_ = it.second;
+                it.first->parent_->children_.insert(it.first->selfItr_);
+                if (achievedStartState(*it.first)){
+                    if(!vBotIsAdded_) {
+                        vBotIsAdded_ = true;
+                        updatePathNeeded = true;
+                        vBot_ = it.first->selfItr_;
+                    }
+                    else if(vBot_->lmc_>it.first->lmc_){
+                        vBotIsAdded_ = true;
+                        updatePathNeeded = true;
+                        vBot_ = it.first->selfItr_;
+                    }
                 }
-                if (it->g_ - it->lmc_ > EPS) {
-                    verifyQueue(it->selfItr_);
+                if (it.first->g_ - it.first->lmc_ > EPS) {
+                    verifyQueue(it.first->selfItr_);
                 }
             }
         }
         for (auto &it: vItr->NMinusR_) {
-            if (it->selfItr_ == vItr->parent_)
+            if (it.first->selfItr_ == vItr->parent_)
                 continue;
-            if (steer(it->pnt_, vItr->pnt_) && it->lmc_ > distanceBySteerFunction(it->pnt_, vItr->pnt_) + (vItr->lmc_)) {
-                it->lmc_ = distanceBySteerFunction(it->pnt_, vItr->pnt_) + vItr->lmc_;
-                if (it->parent_ != NULL)
-                    it->parent_->children_.erase(it->selfItr_);
-                it->parent_ = vItr->selfItr_;
-                it->parent_->children_.insert(it->selfItr_);
-                if (hypot(it->pnt_.x_ - startPoint_.x_, it->pnt_.y_ - startPoint_.y_) < EPS_DOUBLE) {
-                    vBotIsAdded_ = true;
-                    updatePathNeeded = true;
-                    vBot_ = it->selfItr_;
+            if (it.first->lmc_ > dubins_.distance(it.second) + (vItr->lmc_)) {
+                it.first->lmc_ = dubins_.distance(it.second) + vItr->lmc_;
+                if (it.first->parent_ != NULL)
+                    it.first->parent_->children_.erase(it.first->selfItr_);
+                it.first->parent_ = vItr->selfItr_;
+                it.first->pathToParent_ = it.second;
+                it.first->parent_->children_.insert(it.first->selfItr_);
+                if (achievedStartState(*it.first)) {
+                    if(!vBotIsAdded_) {
+                        vBotIsAdded_ = true;
+                        updatePathNeeded = true;
+                        vBot_ = it.first->selfItr_;
+                    }
+                    else if(vBot_->lmc_>it.first->lmc_){
+                        vBotIsAdded_ = true;
+                        updatePathNeeded = true;
+                        vBot_ = it.first->selfItr_;
+                    }
                 }
-                if (it->g_ - it->lmc_ > EPS) {
-                    verifyQueue(it->selfItr_);
+                if (it.first->g_ - it.first->lmc_ > EPS) {
+                    verifyQueue(it.first->selfItr_);
                 }
             }
         }
     }
 }
-/*
-void RRTX::updateObstacles(string fileName) {
-    ifstream in;
-    in.open(fileName.c_str());
-    int n;
-    in >> n;
-    double x, y, x0, y0;
-    for (int i = 0; i < n; ++i) {
-        in >> x0 >> y0;
-        Polygon tmp(Point(x, y), {});
-        int m;
-        in >> m;
-        for (int j = 0; j < m; ++j) {
-            in >> x >> y;
-            tmp.vertices_.emplace_back(x0 + x, y0 + y);
-        }
-        obstacles.push_back(tmp);
-    }
-    in.close();
-    addNewObstacle();
-    check();
-    propagateDescendants();
-    check();
-    reduceInconsistency();
-}
-*/
 bool isOut(Point &p) {
     if (p.x_ < 0 || p.x_ >= MX_WIDTH || p.y_ < 0 || p.y_ >= MX_HEIGHT)
         return true;
@@ -512,34 +487,51 @@ bool isOut(Point &p) {
 }
 
 void RRTX::check() {
+
+    for(auto it=edges.begin(); it!=edges.end(); ++it){
+        auto &nod1 = (it)->first.first;
+        auto &nod2 = (it)->first.second;
+        assert(deletedNodes_.find(nod1)==deletedNodes_.end());
+        assert(deletedNodes_.find(nod2)==deletedNodes_.end());
+        auto n1 = nod1->pnt_;
+        auto n2 = nod2->pnt_;
+        set<pair<int, int>> setPoints;
+        getLatticePointsOnThePath(it->second.first, &n1, n1.x_, n1.y_, n2.x_, n2.y_, 0, 1, setPoints);
+        for(auto pnt:setPoints){
+            assert(passedEdges.count(pnt.first+shiftX_));
+            assert(passedEdges[pnt.first+shiftX_].count(pnt.second+shiftY_));
+            assert(passedEdges[pnt.first+shiftX_][pnt.second+shiftY_].find(it) != passedEdges[pnt.first+shiftX_][pnt.second+shiftY_].end());
+        }
+    }
+
     for (auto &it: nodes_) {
         assert(deletedNodes_.find(&it)==deletedNodes_.end());
         for (auto &it1: it.children_) {
             assert(it1->parent_ == it.selfItr_);
             assert(deletedNodes_.find(it1)==deletedNodes_.end());
-            assert(it.NMinus0_.find(it1)!=it.NMinus0_.end() || it.NMinusR_.find(it1)!=it.NMinusR_.end());
+//            assert(it.NMinus0_.find(it1)!=it.NMinus0_.end() || it.NMinusR_.find(it1)!=it.NMinusR_.end());
         }
         for (auto &it1: it.NPlusR_) {
-            assert(deletedNodes_.find(it1)==deletedNodes_.end());
-            assert(it1->NMinus0_.find(it.selfItr_) != it1->NMinus0_.end());
+            assert(deletedNodes_.find(it1.first)==deletedNodes_.end());
+            assert(it1.first->NMinus0_.find({it.selfItr_, it1.second}) != it1.first->NMinus0_.end());
         }
         for (auto &it1: it.NPlus0_) {
-            assert(deletedNodes_.find(it1)==deletedNodes_.end());
-            assert(it1->NMinusR_.find(it.selfItr_) != it1->NMinusR_.end());
+            assert(deletedNodes_.find(it1.first)==deletedNodes_.end());
+            assert(it1.first->NMinusR_.find({it.selfItr_, it1.second}) != it1.first->NMinusR_.end());
         }
         for (auto &it1: it.NMinus0_) {
-            assert(deletedNodes_.find(it1)==deletedNodes_.end());
-            assert((it1->NPlusR_.find(it.selfItr_)) != it1->NPlusR_.end());
+            assert(deletedNodes_.find(it1.first)==deletedNodes_.end());
+            assert((it1.first->NPlusR_.find({it.selfItr_, it1.second})) != it1.first->NPlusR_.end());
         }
         for (auto &it1: it.NMinusR_) {
-            assert(deletedNodes_.find(it1)==deletedNodes_.end());
-            assert(it1->NPlus0_.find(it.selfItr_) != it1->NPlus0_.end());
+            assert(deletedNodes_.find(it1.first)==deletedNodes_.end());
+            assert(it1.first->NPlus0_.find({it.selfItr_, it1.second}) != it1.first->NPlus0_.end());
         }
         if(it.parent_!=NULL) {
             if(it.parent_!=it.selfItr_) {
-                assert(it.NPlusR_.find(it.parent_) != it.NPlusR_.end() ||
-                       it.NPlus0_.find(it.parent_) != it.NPlus0_.end());
-                assert(steer(it.pnt_, it.parent_->pnt_));
+                assert(it.NPlusR_.find({it.parent_, it.pathToParent_}) != it.NPlusR_.end() ||
+                       it.NPlus0_.find({it.parent_, it.pathToParent_}) != it.NPlus0_.end());
+                assert(checkDubinsPath(it.pathToParent_, &it.pnt_, it.pnt_.x_, it.pnt_.y_, it.parent_->pnt_.x_, it.parent_->pnt_.y_, 0, 1));
             }
         }
         assert((&(it)) == (it.selfItr_));
@@ -547,56 +539,59 @@ void RRTX::check() {
 }
 
 void RRTX::deleteNode(list<Node>::iterator &pntNode) {
-//    assert(&(*pntNode) == pntNode->selfItr_);
+
     // The goal node shouldn't be called to be deleted. If this happens, ignore it.
     if(pntNode==nodes_.begin()){
         return;
     }
 
     for (auto &it: pntNode->NPlus0_) {
-        it->NMinusR_.erase(pntNode->selfItr_);
-        if (pntNode->parent_ == it->selfItr_) {
-//            assert(it->children_.find(pntNode->selfItr_) != it->children_.end());
-            it->children_.erase(pntNode->selfItr_);
+        it.first->NMinusR_.erase({pntNode->selfItr_, it.second});
+        if (pntNode->parent_ == it.first->selfItr_) {
+//            assert(it.first->children_.find(pntNode->selfItr_) != it.first->children_.end());
+            it.first->children_.erase(pntNode->selfItr_);
         }
     }
     for (auto &it: pntNode->NPlusR_) {
-        it->NMinus0_.erase(pntNode->selfItr_);
-
-        if (pntNode->parent_ == it->selfItr_) {
-//            assert(it->children_.find(pntNode->selfItr_) != it->children_.end());
-            it->children_.erase(pntNode->selfItr_);
+        it.first->NMinus0_.erase({pntNode->selfItr_, it.second});
+        if (pntNode->parent_ == it.first->selfItr_) {
+//            assert(it.first->children_.find(pntNode->selfItr_) != it.first->children_.end());
+            it.first->children_.erase(pntNode->selfItr_);
         }
     }
     for (auto &it: pntNode->NPlusNotConnected0_) {
-        it->NMinusNotConnectedR_.erase(pntNode->selfItr_);
+//        assert(it.first->NMinusNotConnectedR_.find({pntNode->selfItr_, it.second})!=it.first->NMinusNotConnectedR_.end());
+        it.first->NMinusNotConnectedR_.erase({pntNode->selfItr_, it.second});
     }
     for (auto &it: pntNode->NPlusNotConnectedR_) {
-        it->NMinusNotConnected0_.erase(pntNode->selfItr_);
+//        assert(it.first->NMinusNotConnected0_.find({pntNode->selfItr_, it.second})!=it.first->NMinusNotConnected0_.end());
+        it.first->NMinusNotConnected0_.erase({pntNode->selfItr_, it.second});
     }
     for (auto &it: pntNode->NMinus0_) {
-//        assert(it->NPlusR_.find(pntNode->selfItr_) != it->NPlusR_.end());
-        it->NPlusR_.erase(pntNode->selfItr_);
-        if (it->parent_ == pntNode->selfItr_) {
-            orphans_.insert(it);
-            (it)->g_ = INF;
-            it->parent_ = NULL;
+//        assert(it.first->NPlusR_.find({pntNode->selfItr_, it.second}) != it.first->NPlusR_.end());
+        it.first->NPlusR_.erase({pntNode->selfItr_, it.second});
+        if (it.first->parent_ == pntNode->selfItr_) {
+            orphans_.insert(it.first);
+            (it.first)->g_ = INF;
+            it.first->parent_ = NULL;
         }
     }
     for (auto &it: pntNode->NMinusR_) {
-//        assert(it->NPlus0_.find(pntNode->selfItr_) != it->NPlus0_.end());
-        it->NPlus0_.erase(pntNode->selfItr_);
-        if (it->parent_ == pntNode->selfItr_) {
-            orphans_.insert(it);
-            (it)->g_ = INF;
-            it->parent_ = NULL;
+//        assert(it.first->NPlus0_.find({pntNode->selfItr_, it.second}) != it.first->NPlus0_.end());
+        it.first->NPlus0_.erase({pntNode->selfItr_, it.second});
+        if (it.first->parent_ == pntNode->selfItr_) {
+            orphans_.insert(it.first);
+            (it.first)->g_ = INF;
+            (it.first)->parent_ = NULL;
         }
     }
     for (auto &it: pntNode->NMinusNotConnected0_) {
-        it->NPlusNotConnectedR_.erase(pntNode->selfItr_);
+//        assert(it.first->NPlusNotConnectedR_.find({pntNode->selfItr_, it.second})!=it.first->NPlusNotConnectedR_.end());
+        it.first->NPlusNotConnectedR_.erase({pntNode->selfItr_, it.second});
     }
     for (auto &it: pntNode->NMinusNotConnectedR_) {
-        it->NPlusNotConnected0_.erase(pntNode->selfItr_);
+//        assert(it.first->NPlusNotConnected0_.find({pntNode->selfItr_, it.second})!=it.first->NPlusNotConnected0_.end());
+        it.first->NPlusNotConnected0_.erase({pntNode->selfItr_, it.second});
     }
     if (orphans_.find(pntNode->selfItr_) != orphans_.end())
         orphans_.erase(pntNode->selfItr_);
@@ -611,12 +606,10 @@ void RRTX::deleteNode(list<Node>::iterator &pntNode) {
     nodes_.erase(pntNode);
 }
 
-void RRTX::shiftTree(double shiftDeltaX, double shiftDeltaY) {
+void RRTX::shiftTree(int shiftDeltaX, int shiftDeltaY) {
     for (auto it = nodes_.begin(); it != nodes_.end(); ++it) {
-//        assert(&(*it) == it->selfItr_);
         it->pnt_.x_ += shiftDeltaX;
         it->pnt_.y_ += shiftDeltaY;
-//        assert((&*it) == it->selfItr_);
     }
 }
 
@@ -630,13 +623,15 @@ void RRTX::initializeTree() {
     nodes_.push_back(goalNode);
     nodes_.begin()->selfItr_ = nodes_.begin()->parent_ = &(*nodes_.begin());
     nodes_.begin()->children_.insert(nodes_.begin()->selfItr_);
-    nodes_.begin()->NMinus0_.insert(nodes_.begin()->selfItr_);
-    nodes_.begin()->NMinusR_.insert(nodes_.begin()->selfItr_);
-    nodes_.begin()->NPlusR_.insert(nodes_.begin()->selfItr_);
-    nodes_.begin()->NPlus0_.insert(nodes_.begin()->selfItr_);
+    nodes_.begin()->NMinus0_.insert({nodes_.begin()->selfItr_, DubinsPath()});
+    nodes_.begin()->NMinusR_.insert({nodes_.begin()->selfItr_, DubinsPath()});
+    nodes_.begin()->NPlusR_.insert({nodes_.begin()->selfItr_, DubinsPath()});
+    nodes_.begin()->NPlus0_.insert({nodes_.begin()->selfItr_, DubinsPath()});
     while (!qRewiring_.empty()) {
         qRewiring_.pop();
     }
+    edges.clear();
+    passedEdges.clear();
 }
 
 bool RRTX::search() {
@@ -655,8 +650,7 @@ bool RRTX::search() {
     int cnt = 0;
     auto startTime = high_resolution_clock::now();
     double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-    while (!vBotIsAdded_ && diffTime < 100000) {
-//        assert(nodes_.size()>0);
+    while (!vBotIsAdded_ && diffTime < RUNTIME_LIMIT) {
         shrinkingBallRadius();
         Point randPnt = randomNode();
         Node v = Node(randPnt, INF, INF, NULL, NULL);
@@ -727,7 +721,10 @@ Node *RRTX::nearest(Node &v) {
     return ans;
 }
 
-void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY, double newTheta) {
+void RRTX::moveRobot(int shiftDeltaX, int shiftDeltaY, double newTheta) {
+
+    shiftX_ += shiftDeltaX;
+    shiftY_ += shiftDeltaY;
     shiftTree(-shiftDeltaX, -shiftDeltaY);
     shiftGoal(-shiftDeltaX, -shiftDeltaY);
     if(guidePathDefined){
@@ -738,6 +735,9 @@ void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY, double newTheta) {
     }
     startPoint_.theta_=newTheta;
     updatePathNeeded = true;
+
+    updateEdges();
+
     for (auto it = nodes_.begin(); it != nodes_.end();) {
         if (isOut(it->pnt_)) {
             auto it1 = it;
@@ -758,7 +758,7 @@ void RRTX::moveRobot(double shiftDeltaX, double shiftDeltaY, double newTheta) {
     reduceInconsistency();
 }
 
-void RRTX::shiftGoal(double shiftDeltaX, double shiftDeltaY) {
+void RRTX::shiftGoal(int shiftDeltaX, int shiftDeltaY) {
     goal_.x_ += shiftDeltaX;
     goal_.y_ += shiftDeltaY;
 }
@@ -783,12 +783,24 @@ void RRTX::drawTree(string fileName) {
 
 void RRTX::updateMap(Map &mp) {
     mp_ = mp;
-    checkForDisappearedObstacles();
-    checkForAppearedObstacles();
-    propagateDescendants();
-    reduceInconsistency();
-}
+//    checkForDisappearedObstacles();
+//    checkForAppearedObstacles();
 
+//    auto startTime = high_resolution_clock::now();
+    checkAllEdges();
+//    double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count()/1000.0;
+//    cout<<fixed<<setprecision(3)<<"Time to checkAllEdges:"<<diffTime<<endl;
+//    startTime = high_resolution_clock::now();
+    propagateDescendants();
+//    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count()/1000.0;
+//    cout<<fixed<<setprecision(3)<<"Time to propagate:"<<diffTime<<endl;
+//    startTime = high_resolution_clock::now();
+    reduceInconsistency();
+//    diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count()/1000.0;
+//    cout<<fixed<<setprecision(3)<<"Time to reduceInconsistency:"<<diffTime<<endl;
+//    check();
+}
+/*
 void RRTX::checkForDisappearedObstacles() {
     for(auto &it:nodes_){
         for(auto it1=it.NPlusNotConnected0_.begin(); it1!=it.NPlusNotConnected0_.end();){
@@ -830,7 +842,7 @@ void RRTX::checkForDisappearedObstacles() {
         }
     }
 }
-
+*/
 void RRTX::updateMapFromFile(string fileName) {
     ifstream in;
     in.open(fileName.c_str());
@@ -878,11 +890,12 @@ void RRTX::moveObstacles(string fileName, int shift) {
         }
     }
     mp_ = mp1;
-    checkForDisappearedObstacles();
-//    reduceInconsistency();
-    checkForAppearedObstacles();
+//    checkForDisappearedObstacles();
+//    checkForAppearedObstacles();
+    checkAllEdges();
     propagateDescendants();
     reduceInconsistency();
+//    check();
 }
 
 void RRTX::drawMap(string fileName) {
@@ -907,20 +920,18 @@ bool RRTX::achievedStartState(Node v) {
 }
 
 double RRTX::distanceBySteerFunction(Point &v1, Point &v2) {
-    if(!steer(v1, v2))
+    if(!(steer(v1, v2).first))
         return INF;
-    Dubins d(MIN_RADIUS, 0);
-    return d.distance(&v1, &v2);
+    return dubins_.distance(&v1, &v2);
 }
 
 void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, double step) {
-    Dubins d(MIN_RADIUS, 0);
-    auto path=d.dubins(&v1, &v2);
+    auto path=dubins_.dubins(&v1, &v2);
     vector<Point> v;
-    int timeSteps = d.distance(&v1, &v2)/step+2;
+    int timeSteps = dubins_.distance(path)/step+2;
     for(int i=1; i<=timeSteps; ++i){
         Point p;
-        d.interpolate(&v1, path, (double)i/timeSteps, &p);
+        dubins_.interpolate(&v1, path, (double)i/timeSteps, &p);
         trajectory.push_back(p);
     }
 }
@@ -940,7 +951,6 @@ void RRTX::updatePath() {
         PathSimplifier ps(mp_);
         ps.simplifyMax(path);
         double diffTime1 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-        finalPath.push_back(path[0]);
         for(int i=0; i+1<path.size(); ++i){
             auto it = path[i], it1 = path[i+1];
             vector<Point> v;
@@ -965,19 +975,19 @@ void RRTX::resetTreeFillGuidePath() {
     initializeTree();
 }
 
-bool RRTX::checkDubinsPath(Dubins &d, DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy, double t1, double t2) {
-    if(abs(int(stx+0.5)-int(ndx+0.5)) + abs(int(sty+0.5)-int(ndy+0.5))<=1 && t2-t1<1-EPS_DOUBLE){
-        set<int> vx = {int(stx+0.5)}, vy = {int(sty+0.5)};
-        if(abs(stx-(int(stx)+0.5))<=EPS_DOUBLE){
+bool RRTX::checkDubinsPath(const DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy, double t1, double t2) {
+    if(abs(lround(stx)-lround(ndx)) + abs(lround(sty)-lround(ndy))<=1 && t2-t1<1-EPS_DOUBLE){
+        set<int> vx = {static_cast<int>(lround(stx))}, vy = {static_cast<int>(lround(sty))};
+        if(abs(abs(stx-lround(stx))-0.5)<=EPS_DOUBLE){
             vx.insert(ceil(stx));vx.insert(floor(stx));
         }
-        if(abs(ndx-(int(ndx)+0.5))<=EPS_DOUBLE){
+        if(abs(abs(ndx-lround(ndx))-0.5)<=EPS_DOUBLE){
             vx.insert(ceil(ndx));vx.insert(floor(ndx));
         }
-        if(abs(sty-(int(sty)+0.5))<=EPS_DOUBLE){
+        if(abs(abs(sty-lround(sty))-0.5)<=EPS_DOUBLE){
             vy.insert(ceil(sty));vy.insert(floor(sty));
         }
-        if(abs(ndy-(int(ndy)+0.5))<=EPS_DOUBLE){
+        if(abs(abs(ndy-lround(ndy))-0.5)<=EPS_DOUBLE){
             vy.insert(ceil(ndy));vy.insert(floor(ndy));
         }
         for(auto itx:vx){
@@ -989,49 +999,178 @@ bool RRTX::checkDubinsPath(Dubins &d, DubinsPath &dp, Point *p0, double stx, dou
         }
         return true;
     }
-    //    if(abs(int(stx+0.5)-int(ndx+0.5)) + abs(int(sty+0.5)-int(ndy+0.5))<=1 && t2-t1<1-EPS_DOUBLE){ // assure the start and end points are not in the same cell.
-//        return !mp_.cellIsObstacle(stx, sty) && !mp_.cellIsObstacle(ndx, ndy);
-//        bool ans =  !mp_.cellIsObstacle(stx, sty);
-//        double tmpx = stx, tmpy = sty;
-//        if(stx < int(stx+0.5))
-//            tmpx = stx-0.5;
-//        else if(stx > int(stx+0.5))
-//            tmpx = stx+0.5;
-//        if(sty < int(sty+0.5))
-//            tmpy = sty-0.5;
-//        else if(sty > int(sty+0.5))
-//            tmpy = sty+0.5;
-//        ans = ans && !mp_.cellIsObstacle(tmpx, sty) && !mp_.cellIsObstacle(stx, tmpy) && !mp_.cellIsObstacle(tmpx, tmpy);
-//        if((int(stx+0.5) != int(ndx+0.5)) || (int(sty+0.5) != int(ndy+0.5))){
-//            ans = ans && !mp_.cellIsObstacle(ndx, ndy);
-//
-//            tmpx = ndx, tmpy = ndy;
-//            if(ndx < int(ndx+0.5))
-//                tmpx = ndx-0.5;
-//            else if(ndx > int(ndx+0.5))
-//                tmpx = ndx+0.5;
-//            if(ndy < int(ndy+0.5))
-//                tmpy = ndy-0.5;
-//            else if(ndy > int(ndy+0.5))
-//                tmpy = ndy+0.5;
-//            ans = ans && !mp_.cellIsObstacle(tmpx, ndy) && !mp_.cellIsObstacle(ndx, tmpy) && !mp_.cellIsObstacle(tmpx, tmpy);
-//        }
-//        return ans;
-//    }
     Point md;
     double mdT = (t1+t2)/2.0;
-    d.interpolate(p0, dp, mdT, &md);
-    return checkDubinsPath(d, dp, p0, stx, sty, md.x_, md.y_, t1, mdT) &&
-        checkDubinsPath(d, dp, p0, md.x_, md.y_, ndx, ndy, mdT, t2);
+    dubins_.interpolate(p0, dp, mdT, &md);
+    return checkDubinsPath(dp, p0, stx, sty, md.x_, md.y_, t1, mdT) &&
+        checkDubinsPath(dp, p0, md.x_, md.y_, ndx, ndy, mdT, t2);
 }
 
-//bool RRTX::checkPartOfLeftCircle(double cntrX, double cntrY, double r, double stx, double sty, double ndx, double ndy) {
-//    double x1 = cntrX + r;
-//    double y1 = cntrY + r;
-//    double x2 = cntrX - r;
-//    double y2 = cntrY - r;
-//    if(stx < x1 && stx > )
-//}
+void
+RRTX::getLatticePointsOnThePath(DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy,
+                                double t1, double t2, set<pair<int, int>> &pointsSet) {
+    if(abs(lround(stx)-lround(ndx)) + abs(lround(sty)-lround(ndy))<=1 && t2-t1<1-EPS_DOUBLE){
+//        int vx = lround(stx), vy = lround(sty);
+        set<int> vx, vy;
+        vx.insert(lround(stx));
+        vy.insert(lround(sty));
+        if(abs(abs(stx-lround(stx))-0.5)<=EPS_DOUBLE){
+            vx.insert(ceil(stx));vx.insert(floor(stx));
+        }
+        if(abs(abs(ndx-lround(ndx))-0.5)<=EPS_DOUBLE){
+            vx.insert(ceil(ndx));vx.insert(floor(ndx));
+        }
+        if(abs(abs(sty-lround(sty))-0.5)<=EPS_DOUBLE){
+            vy.insert(ceil(sty));vy.insert(floor(sty));
+        }
+        if(abs(abs(ndy-lround(ndy))-0.5)<=EPS_DOUBLE){
+            vy.insert(ceil(ndy));vy.insert(floor(ndy));
+        }
+        for(auto itx:vx){
+            for(auto ity:vy){
+                pointsSet.insert({itx, ity});
+            }
+        }
+        return;
+    }
+    Point md;
+    double mdT = (t1+t2)/2.0;
+    dubins_.interpolate(p0, dp, mdT, &md);
+    getLatticePointsOnThePath(dp, p0, stx, sty, md.x_, md.y_, t1, mdT, pointsSet);
+    getLatticePointsOnThePath(dp, p0, md.x_, md.y_, ndx, ndy, mdT, t2, pointsSet);
+}
+
+void RRTX::checkAllEdges() {
+    for(auto &itx:passedEdges){
+        for(auto &ity:itx.second){
+            int x = itx.first-shiftX_, y = ity.first-shiftY_;
+            if(mp_.cellIsObstacle(x, y)){
+                for(auto id=ity.second.begin(); id!=ity.second.end(); ++id){
+                    if((*id)->second.second.second == 1){
+                        auto &nod1 = (*id)->first.first;
+                        auto &nod2 = (*id)->first.second;
+                        if((*id)->second.second.first){
+//                            assert(nod1->NPlusR_.find({nod2, (*id)->second.first})!=nod1->NPlusR_.end());
+                            nod1->NPlusR_.erase({nod2, (*id)->second.first});
+                            nod1->NPlusNotConnectedR_.insert({nod2, (*id)->second.first});
+//                            assert(nod2->NMinus0_.find({nod1, (*id)->second.first})!= nod2->NMinus0_.end());
+                            nod2->NMinus0_.erase({nod1, (*id)->second.first});
+                            nod2->NMinusNotConnected0_.insert({nod1, (*id)->second.first});
+                        }
+                        else{
+//                            assert(nod1->NPlus0_.find({nod2, (*id)->second.first})!=nod1->NPlus0_.end());
+                            nod1->NPlus0_.erase({nod2, (*id)->second.first});
+                            nod1->NPlusNotConnected0_.insert({nod2, (*id)->second.first});
+//                            assert(nod2->NMinusR_.find({nod1, (*id)->second.first})!=nod2->NMinusR_.end());
+                            nod2->NMinusR_.erase({nod1, (*id)->second.first});
+                            nod2->NMinusNotConnectedR_.insert({nod1, (*id)->second.first});
+                        }
+
+                        if (nod1->parent_ == nod2) {
+                            orphans_.insert(nod1);
+                            nod1->g_ = INF;
+                            nod2->children_.erase(nod1);
+                            nod1->parent_ = NULL;
+                        }
+                    }
+                    (*id)->second.second.second = -1; // real invalid
+                }
+            }
+        }
+    }
+    for(auto &it:edges){
+        if(it.second.second.second == -1){
+            it.second.second.second = 0;
+        }
+        else if(it.second.second.second==0){
+            it.second.second.second = 1;
+            auto nod1 = it.first.first;
+            auto nod2 = it.first.second;
+            if(it.second.second.first){
+//                assert(nod1->NPlusNotConnectedR_.find({nod2, it.second.first})!=nod1->NPlusNotConnectedR_.end());
+                nod1->NPlusNotConnectedR_.erase({nod2, it.second.first});
+                nod1->NPlusR_.insert({nod2, it.second.first});
+//                assert(nod2->NMinusNotConnected0_.find({nod1, it.second.first})!=nod2->NMinusNotConnected0_.end());
+                nod2->NMinusNotConnected0_.erase({nod1, it.second.first});
+                nod2->NMinus0_.insert({nod1, it.second.first});
+            }
+            else{
+//                assert(nod1->NPlusNotConnected0_.find({nod2, it.second.first})!=nod1->NPlusNotConnected0_.end());
+                nod1->NPlusNotConnected0_.erase({nod2, it.second.first});
+                nod1->NPlus0_.insert({nod2, it.second.first});
+//                assert(nod2->NMinusNotConnectedR_.find({nod1, it.second.first})!=nod2->NMinusNotConnectedR_.end());
+                nod2->NMinusNotConnectedR_.erase({nod1, it.second.first});
+                nod2->NMinusR_.insert({nod1, it.second.first});
+            }
+
+            if(distanceBySteerFunction(nod1->pnt_, nod2->pnt_)+nod2->lmc_ < nod1->lmc_){
+                nod1->lmc_ = distanceBySteerFunction(nod1->pnt_, nod2->pnt_)+nod2->lmc_;
+                if(nod1->parent_!=NULL)
+                    nod1->parent_->children_.erase(nod1);
+                nod1->parent_ = nod2;
+                nod1->pathToParent_ = it.second.first;
+                nod2->children_.insert(nod1);
+                verifyQueue(nod1);
+            }
+        }
+    }
+}
+
+void RRTX::updateEdges() {
+    for(auto it=edges.begin(); it!=edges.end();){
+        auto &nod1 = (it)->first.first;
+        auto &nod2 = (it)->first.second;
+        if(isOut(nod1->pnt_) ||
+                isOut(nod2->pnt_)){
+            auto n1 = nod1->pnt_, n2 = nod2->pnt_;
+            auto it1 = it;
+            set<pair<int, int>> setPoints;
+            auto path = it1->second.first;
+            getLatticePointsOnThePath(it1->second.first, &n1, n1.x_, n1.y_, n2.x_, n2.y_, 0, 1, setPoints);
+            for(auto pnt:setPoints){
+                assert(passedEdges.count(pnt.first+shiftX_));
+                assert(passedEdges[pnt.first+shiftX_].count(pnt.second+shiftY_));
+                assert(passedEdges[pnt.first+shiftX_][pnt.second+shiftY_].find(it1) != passedEdges[pnt.first+shiftX_][pnt.second+shiftY_].end());
+                passedEdges[pnt.first+shiftX_][pnt.second+shiftY_].erase(it1);
+            }
+            ++it;
+            edges.erase(it1);
+            continue;
+        }
+        ++it;
+    }
+}
+void RRTX::addEdge(Node *n1, pair<Node *, DubinsPath> n2, bool direction) {
+    if(direction) {
+        n1->NPlusR_.insert(n2);
+        n2.first->NMinus0_.insert({n1, n2.second});
+    }
+    else{
+        n1->NPlus0_.insert(n2);
+        n2.first->NMinusR_.insert({n1, n2.second});
+    }
+    set<pair<int, int>> setPoints;
+    edges.push_back({{n1, n2.first}, {n2.second, {direction, 1}}});
+    auto id = --edges.end();
+    getLatticePointsOnThePath(n2.second, &n1->pnt_, n1->pnt_.x_, n1->pnt_.y_,n2.first->pnt_.x_, n2.first->pnt_.y_, 0, 1, setPoints);
+    for (auto it: setPoints) {
+        passedEdges[it.first + shiftX_][it.second + shiftY_].insert(id);
+    }
+}
+
+void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, DubinsPath &dubinsPath, double step) {
+    vector<Point> v;
+    int timeSteps = dubins_.distance(dubinsPath)/step+2;
+    for(int i=1; i<=timeSteps; ++i){
+        Point p;
+        dubins_.interpolate(&v1, dubinsPath, (double)i/timeSteps, &p);
+        trajectory.push_back(p);
+    }
+}
+
+bool RRTX::checkDubinsPath(const DubinsPath &dubinsPath, Point &p0, Point &p1) {
+    return checkDubinsPath(dubinsPath, &p0, p0.x_, p0.y_, p1.x_, p1.y_, 0, 1);
+}
 
 
 #endif //RRTX_RRTX_CPP

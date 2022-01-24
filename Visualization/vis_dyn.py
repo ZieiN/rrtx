@@ -33,6 +33,20 @@ for imageNm in range(1,4):
     numOfTests = 20
 
     counter = 0
+    for id in range(0, 0):
+        shiftsX = []
+        shiftsY = []
+        shiftsX1 = []
+        shiftsY1 = []
+        with open('../output/map' + imageNum + '/Dynamics/shifts-'+str(id)+'.txt') as f:
+            for line in f:
+                a = [float(i) for i in line.split()]
+                shiftsX.append(a[0])
+                shiftsY.append(a[1])
+                shiftsX1.append(a[2])
+                shiftsY1.append(a[3])
+            f.close()
+        counter += len(shiftsX)
     for id in range(0, numOfTests):
         shiftsX = []
         shiftsY = []
@@ -54,7 +68,7 @@ for imageNm in range(1,4):
             f.close
         solPathX = []
         solPathY = []
-        for id1 in range(0, len(shiftsX)-1):
+        for id1 in range(120, len(shiftsX)-1):
             pl.clf()
             pl.axis('equal')
             pl.plot([0, 0, 600, 600, 0], [600, 0, 0, 600, 600], "r-")
@@ -111,9 +125,9 @@ for imageNm in range(1,4):
                         solPathY2.append(a[5])
             f.close()
 
-            pl.plot(solPathX, solPathY, 'g-', linewidth=4)
-            pl.plot(solPathX1, solPathY1, 'b-', linewidth=4)
-            pl.plot(solPathX2, solPathY2, 'r-', linewidth=4)
+            pl.plot(solPathX, solPathY, 'g-')#, linewidth=4)
+            pl.plot(solPathX1, solPathY1, 'b-')#, linewidth=4)
+            pl.plot(solPathX2, solPathY2, 'r-')#, linewidth=4)
 
             imgx = []
             imgy = []
@@ -157,3 +171,4 @@ for imageNm in range(1,4):
             # pl.show()
             # input("hit[enter] to end.")
             pl.close('all')
+        counter += 1

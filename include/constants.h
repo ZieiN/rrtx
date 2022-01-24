@@ -14,12 +14,12 @@ using namespace  std;
 //string testFileName = "1";
 //const double M_PI = 3.141592653;
 const double INF = 1e9;
-const double EPS_GOAL = 0.01;
-const double MX_HEIGHT = 600;
-const double MX_WIDTH = 600;
+const double EPS_GOAL = 0.1;
+const int MX_HEIGHT = 600;
+const int MX_WIDTH = 600;
 const double DELTA = 60;
 const double DELTA2 = 60;
-const double EPS = 0;
+const double EPS = 50;
 const double EPS_DOUBLE = 1e-9;
 const double EPS_ORIENTATION_ANGLE = 0.1;
 const double DIM = 2;
@@ -30,6 +30,7 @@ const double GAMMA = 2 * pow((1 + DIM) * (MU_OBSTACLES / ZETA), 1 / DIM);
 const double probability_SAMPLE_START_NODE = 0.3;
 const int DENSITY_THRESHOLD = 30;
 const int MAX_NUM_NEIGHNORS = 20;
+const int RUNTIME_LIMIT = 100000; // runtime for sampling in microseconds
 
 // Dubins
 const double VELOCITY = 5;

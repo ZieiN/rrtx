@@ -127,116 +127,6 @@ bool Map::cellIsObstacle(int x, int y) const{
 //    }
 //    return false;
 //}
-bool Map::isThereLineOfSight(double x0, double y0, double x1, double y1) const
-{
-    int steep = abs(y1 - y0) > abs(x1 - x0) ;
-    if (steep)
-    {
-        swap(x0, y0);
-        swap(x1, y1);
-    }
-    if (x0 > x1)
-    {
-        swap(x0, x1);
-        swap(y0, y1);
-    }
-
-    float dx = x1 - x0;
-    float dy = y1 - y0;
-    float gradient;
-    if (dx == 0.0)
-        gradient = 0;
-    else
-        gradient = dy / dx;
-    double xpxl1 = x0;
-    double xpxl2 = x1;
-    float intersectY = y0 + 0.5;
-    if (steep)
-    {
-        
-        if(y1<y0){
-            for (double x = xpxl1 ; x < xpxl2 ; x++)
-            {
-                double realPart = intersectY-int(intersectY);
-                if(cellIsObstacle(intersectY, x))
-                {
-                    return false;
-                }
-                if(realPart <= abs(gradient) * 0.5 && cellIsObstacle(intersectY-1, x))
-                {
-                    return false;
-                }
-                if(realPart >= abs(gradient) * 0.5 && cellIsObstacle(intersectY, x+1))
-                {
-                    return false;
-                }
-                intersectY += gradient;
-            }
-        }
-        else{
-            for (double x = xpxl1 ; x < xpxl2 ; x++)
-            {
-                double realPart = intersectY-int(intersectY);
-                if(cellIsObstacle(intersectY, x))
-                {
-                    return false;
-                }
-                if(1-realPart >= abs(gradient) * 0.5 && cellIsObstacle(intersectY, x+1))
-                {
-                    return false;
-                }
-                if(1-realPart <= abs(gradient) * 0.5 && cellIsObstacle(intersectY+1, x))
-                {
-                    return false;
-                }
-                intersectY += gradient;
-            }
-        }
-    }
-    else
-    {
-        if(y1<y0){
-            for (double x = xpxl1 ; x < xpxl2 ; x++)
-            {
-                double realPart = intersectY-int(intersectY);
-                if(cellIsObstacle(x, intersectY))
-                {
-                    return false;
-                }
-                if(realPart <= abs(gradient) * 0.5 && cellIsObstacle(x, intersectY-1))
-                {
-                    return false;
-                }
-                if(realPart >= abs(gradient) * 0.5 && cellIsObstacle(x+1, intersectY))
-                {
-                    return false;
-                }
-                intersectY += gradient;
-            }
-        }
-        else{
-            for (double x = xpxl1 ; x < xpxl2 ; x++)
-            {
-                double realPart = intersectY-int(intersectY);
-                if(cellIsObstacle(x, intersectY))
-                {
-                    return false;
-                }
-                if(1-realPart >= abs(gradient) * 0.5 && cellIsObstacle(x+1, intersectY))
-                {
-                    return false;
-                }
-                if(1-realPart <= abs(gradient) * 0.5 && cellIsObstacle(x, intersectY+1))
-                {
-                    return false;
-                }
-                intersectY += gradient;
-            }
-        }
-    }
-    return true;
-}
-
 bool Map::getValue(int i, int j) const {
     return cell_[i][j];
 }
@@ -246,7 +136,7 @@ bool Map::isIn(int i, int j) {
 }
 
 bool Map::cellIsObstacle(double x, double y) const {
-    set<int> sx={int(x+0.5+EPS_DOUBLE), int(x+0.5-EPS_DOUBLE)}, sy={int(y+0.5+EPS_DOUBLE), int(y+0.5-EPS_DOUBLE)};
+    set<int> sx={static_cast<int>(lround(x+EPS_DOUBLE)), static_cast<int>(lround(x-EPS_DOUBLE))}, sy={static_cast<int>(lround(y+EPS_DOUBLE)), static_cast<int>(lround(y-EPS_DOUBLE))};
     bool ans = false;
     for(auto xx:sx){
         for(auto yy:sy){
@@ -258,7 +148,7 @@ bool Map::cellIsObstacle(double x, double y) const {
 }
 
 bool Map::isInXY(double x, double y) {
-    return isIn((height_-1-int(y+0.5)), int(x+0.5));
+    return isIn((height_-1-lround(y)), lround(x));
 }
 
 bool Map::cellIsObstacleIJ(int i, int j) const {

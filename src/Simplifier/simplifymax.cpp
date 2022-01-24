@@ -128,7 +128,7 @@ PathSimplifier::shortcutPath(vector<Point> &path, unsigned int maxSteps, unsigne
         int index1 = -1;
         double t1 = 0.0;
         double distTo1 =
-                rng_.uniformReal(std::max(0.0, distTo0 - rd),
+                rng_.uniformReal(std::max((double)0.0, distTo0 - rd),
                                  std::min(distTo0 + rd, dists.back()));   // sample a random point (distTo1) near s0
         pit = std::lower_bound(dists.begin(), dists.end(), distTo1);  // find the NEXT waypoint after the random point
         int pos1 = pit == dists.end() ? dists.size() - 1 :
@@ -163,12 +163,12 @@ PathSimplifier::shortcutPath(vector<Point> &path, unsigned int maxSteps, unsigne
             t0 = (distTo0 - dists[pos0]) / (dists[pos0 + 1] - dists[pos0]);
             Dubins d(MIN_RADIUS, 0);
             d.interpolate(&path[pos0], &path[pos0 + 1], t0, temp0);
-//            cout<<pos0<<" "<<path.size()<<endl;
-//            cout<<distance(path[pos0], *temp0)+ distance(*temp0, path[pos0+1])<<endl;
-//            cout<<distance(path[pos0], path[pos0+1])<<endl;
-//            cout<<path[pos0].x_<<" "<<path[pos0].y_<<" "<<path[pos0].theta_<<endl;
-//            cout<<path[pos0+1].x_<<" "<<path[pos0+1].y_<<" "<<path[pos0+1].theta_<<endl;
-//            cout<<temp0->x_<<" "<<temp0->y_<<" "<<temp0->theta_<<endl;
+//            cout<<fixed<<setprecision(3)<<pos0<<" "<<path.size()<<endl;
+//            cout<<fixed<<setprecision(3)<<distance(path[pos0], *temp0)+ distance(*temp0, path[pos0+1])<<endl;
+//            cout<<fixed<<setprecision(3)<<distance(path[pos0], path[pos0+1])<<endl;
+//            cout<<fixed<<setprecision(3)<<path[pos0].x_<<" "<<path[pos0].y_<<" "<<path[pos0].theta_<<endl;
+//            cout<<fixed<<setprecision(3)<<path[pos0+1].x_<<" "<<path[pos0+1].y_<<" "<<path[pos0+1].theta_<<endl;
+//            cout<<fixed<<setprecision(3)<<temp0->x_<<" "<<temp0->y_<<" "<<temp0->theta_<<endl;
 //            assert(checkMotion(path[pos0], path[pos0+1]));
 //            assert(checkMotion(*temp0, path[pos0+1]));
 //            assert(checkMotion(path[pos0], *temp0));
@@ -190,12 +190,12 @@ PathSimplifier::shortcutPath(vector<Point> &path, unsigned int maxSteps, unsigne
             t1 = (distTo1 - dists[pos1]) / (dists[pos1 + 1] - dists[pos1]);
             Dubins d(MIN_RADIUS, 0);
             d.interpolate(&path[pos1], &path[pos1 + 1], t1, temp1);
-//            cout<<pos1+1<<" "<<path.size()<<endl;
-//            cout<<distance(path[pos1], *temp1)<<" "<<distance(*temp1, path[pos1+1])<<endl;
-//            cout<<distance(path[pos1], path[pos1+1])<<endl;
-//            cout<<path[pos1].x_<<" "<<path[pos1].y_<<" "<<path[pos1].theta_<<endl;
-//            cout<<path[pos1+1].x_<<" "<<path[pos1+1].y_<<" "<<path[pos1+1].theta_<<endl;
-//            cout<<temp1->x_<<" "<<temp1->y_<<" "<<temp1->theta_<<endl;
+//            cout<<fixed<<setprecision(3)<<pos1+1<<" "<<path.size()<<endl;
+//            cout<<fixed<<setprecision(3)<<distance(path[pos1], *temp1)<<" "<<distance(*temp1, path[pos1+1])<<endl;
+//            cout<<fixed<<setprecision(3)<<distance(path[pos1], path[pos1+1])<<endl;
+//            cout<<fixed<<setprecision(3)<<path[pos1].x_<<" "<<path[pos1].y_<<" "<<path[pos1].theta_<<endl;
+//            cout<<fixed<<setprecision(3)<<path[pos1+1].x_<<" "<<path[pos1+1].y_<<" "<<path[pos1+1].theta_<<endl;
+//            cout<<fixed<<setprecision(3)<<temp1->x_<<" "<<temp1->y_<<" "<<temp1->theta_<<endl;
 //            assert(checkMotion(path[pos1], path[pos1+1]));
 //            if(checkMotion(*temp1, path[pos1+1])){
 //
@@ -477,13 +477,13 @@ bool PathSimplifier::checkMotion(Point &p1, Point &p2) {
 //        out<<p.x_<<" "<<p.y_<<" "<<p.x_<<" "<<p.y_<<" "<<endl;
 //    }
 //    out.close();
-//    cout<<p1.x_<<" "<<p1.y_<<" "<<p1.theta_<<"-->"<<p2.x_<<" "<<p2.y_<<" "<<p2.theta_<<endl;
+//    cout<<fixed<<setprecision(3)<<p1.x_<<" "<<p1.y_<<" "<<p1.theta_<<"-->"<<p2.x_<<" "<<p2.y_<<" "<<p2.theta_<<endl;
     int numOfTimeSteps = distance(p1, p2)*3+1;
-//    cout<<"Here"<<numOfTimeSteps<<endl;
+//    cout<<fixed<<setprecision(3)<<"Here"<<numOfTimeSteps<<endl;
     for(int i=1; i<=numOfTimeSteps; ++i){
         Point p;
         d.interpolate(&p1, path, (double)i/numOfTimeSteps, &p);
-//        cout<<p.x_<<" "<<p.y_<<endl;
+//        cout<<fixed<<setprecision(3)<<p.x_<<" "<<p.y_<<endl;
         if(mp_.cellIsObstacle(p.x_, p.y_)) {
             return false;
         }
@@ -530,18 +530,18 @@ void PathSimplifier::subdivide(vector<Point> &path) {
 bool
 PathSimplifier::checkDubinsPath(Dubins &d, DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy,
                                 double t1, double t2) {
-    if(abs(int(stx+0.5)-int(ndx+0.5)) + abs(int(sty+0.5)-int(ndy+0.5))<=1 && t2-t1<1-EPS_DOUBLE){
-        set<int> vx = {int(stx+0.5)}, vy = {int(sty+0.5)};
-        if(abs(stx-(int(stx)+0.5))<=EPS_DOUBLE){
+    if(abs(lround(stx)-lround(ndx)) + abs(lround(sty)-lround(ndy))<=1 && t2-t1<1-EPS_DOUBLE){
+        set<int> vx = {static_cast<int>(lround(stx))}, vy = {static_cast<int>(lround(sty))};
+        if(abs(abs(stx-lround(stx))-0.5)<=EPS_DOUBLE){
             vx.insert(ceil(stx));vx.insert(floor(stx));
         }
-        if(abs(ndx-(int(ndx)+0.5))<=EPS_DOUBLE){
+        if(abs(abs(ndx-lround(ndx))-0.5)<=EPS_DOUBLE){
             vx.insert(ceil(ndx));vx.insert(floor(ndx));
         }
-        if(abs(sty-(int(sty)+0.5))<=EPS_DOUBLE){
+        if(abs(abs(sty-lround(sty))-0.5)<=EPS_DOUBLE){
             vy.insert(ceil(sty));vy.insert(floor(sty));
         }
-        if(abs(ndy-(int(ndy)+0.5))<=EPS_DOUBLE){
+        if(abs(abs(ndy-lround(ndy))-0.5)<=EPS_DOUBLE){
             vy.insert(ceil(ndy));vy.insert(floor(ndy));
         }
         for(auto itx:vx){
@@ -553,30 +553,30 @@ PathSimplifier::checkDubinsPath(Dubins &d, DubinsPath &dp, Point *p0, double stx
         }
         return true;
     }
-//    if(abs(int(stx+0.5)-int(ndx+0.5)) + abs(int(sty+0.5)-int(ndy+0.5))<=1 && t2-t1<1-EPS_DOUBLE){
+//    if(abs(lround(stx)-lround(ndx)) + abs(round(sty)-round(ndy))<=1 && t2-t1<1-EPS_DOUBLE){
 //        return !mp_.cellIsObstacle(stx, sty) && !mp_.cellIsObstacle(ndx, ndy);
 //        bool ans =  !mp_.cellIsObstacle(stx, sty);
 //        double tmpx = stx, tmpy = sty;
-//        if(stx < int(stx+0.5))
+//        if(stx < lround(stx))
 //            tmpx = stx-0.5;
-//        else if(stx > int(stx+0.5))
+//        else if(stx > lround(stx))
 //            tmpx = stx+0.5;
-//        if(sty < int(sty+0.5))
+//        if(sty < round(sty))
 //            tmpy = sty-0.5;
-//        else if(sty > int(sty+0.5))
+//        else if(sty > round(sty))
 //            tmpy = sty+0.5;
 //        ans = ans && !mp_.cellIsObstacle(tmpx, sty) && !mp_.cellIsObstacle(stx, tmpy) && !mp_.cellIsObstacle(tmpx, tmpy);
-//        if((int(stx+0.5) != int(ndx+0.5)) || (int(sty+0.5) != int(ndy+0.5))){
+//        if((lround(stx) != lround(ndx)) || (round(sty) != round(ndy))){
 //            ans = ans && !mp_.cellIsObstacle(ndx, ndy);
 //
 //            tmpx = ndx, tmpy = ndy;
-//            if(ndx < int(ndx+0.5))
+//            if(ndx < lround(ndx))
 //                tmpx = ndx-0.5;
-//            else if(ndx > int(ndx+0.5))
+//            else if(ndx > lround(ndx))
 //                tmpx = ndx+0.5;
-//            if(ndy < int(ndy+0.5))
+//            if(ndy < round(ndy))
 //                tmpy = ndy-0.5;
-//            else if(ndy > int(ndy+0.5))
+//            else if(ndy > round(ndy))
 //                tmpy = ndy+0.5;
 //            ans = ans && !mp_.cellIsObstacle(tmpx, ndy) && !mp_.cellIsObstacle(ndx, tmpy) && !mp_.cellIsObstacle(tmpx, tmpy);
 //        }

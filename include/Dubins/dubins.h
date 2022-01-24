@@ -53,7 +53,8 @@ public:
     {
         return length_[0] + length_[1] + length_[2];
     }
-
+//    DubinsPath& operator=(const DubinsPath& other);
+//    DubinsPath (const DubinsPath&);
     /** Path segment types */
     const DubinsPathSegmentType *type_;
     /** Path segment lengths */
@@ -63,12 +64,14 @@ public:
 };
 
 
+
 class Dubins {
 public:
     Dubins(double turningRadius = 1.0, bool isSymmetric = false)
             : rho_(turningRadius), isSymmetric_(isSymmetric) {
     }
     double distance(const Point *state1, const Point *state2) const;
+    double distance(const DubinsPath & dp) const;
     void interpolate(const Point *from, const DubinsPath &path, double t, Point *point) const;
     void interpolate(const Point *from, const Point *to, double t, Point *point) const;
 
@@ -80,9 +83,9 @@ public:
     DubinsPath dubins(double d, double alpha, double beta) const;
     DubinsPath dubins(const Point *x, const Point *y) const;
     void copyState(Point *to, const Point *from) const;
+    double rho_;
 
 private:
-    double rho_;
     bool isSymmetric_;
 };
 
