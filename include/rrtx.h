@@ -88,7 +88,7 @@ public:
 
     Node *nearest(Node &v);
     Point randomNode();
-    bool achievedStartState(Node);
+    bool achievedStartState(Point);
     bool checkDubinsPath(const DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy, double t1, double t2);
     bool checkDubinsPath(const DubinsPath &dubinsPath, Point &p0, Point &p1);
     bool extend(Node &v);
@@ -130,7 +130,7 @@ public:
     void updateLMC(Node *vItr);
     void updateMap(Map &mp);
     void updateMapFromFile(string fileName);
-    void updatePath();
+    void updatePath(double step);
     void verifyQueue(Node *vItr);
 //    bool checkPartOfLeftCircle(double cntrX, double cntrY, double r, double stx, double sty, double ndx, double ndy);
 //    void checkForAppearedObstacles();

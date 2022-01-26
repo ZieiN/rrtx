@@ -2,7 +2,7 @@ import pylab as pl
 import os
 width = 600
 height = 600
-for imageNm in range(1,4):
+for imageNm in range(2,4):
     imageNum = str(imageNm)
 
     stX = []
@@ -47,7 +47,7 @@ for imageNm in range(1,4):
                 shiftsY1.append(a[3])
             f.close()
         counter += len(shiftsX)
-    for id in range(0, numOfTests):
+    for id in range(10, numOfTests):
         shiftsX = []
         shiftsY = []
         shiftsX1 = []
@@ -68,6 +68,7 @@ for imageNm in range(1,4):
             f.close
         solPathX = []
         solPathY = []
+        print(id, len(shiftsX))
         for id1 in range(0, len(shiftsX)-1):
             pl.clf()
             pl.axis('equal')

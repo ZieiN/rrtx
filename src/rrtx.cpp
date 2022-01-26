@@ -332,7 +332,7 @@ void RRTX::drawSolution(string fileName) {
     ofstream out;
     out.open(fileName.c_str());
     if(updatePathNeeded){
-        updatePath();
+        updatePath(1);
     }
     for(int i=0; i+1<finalPath.size(); ++i){
 //        assert(mp_.cellIsObstacle(finalPath[i].x_, finalPath[i].y_)==0);
@@ -434,7 +434,7 @@ void RRTX::rewireNeighbors(Node* &vItr) {
                 it.first->parent_ = vItr->selfItr_;
                 it.first->pathToParent_ = it.second;
                 it.first->parent_->children_.insert(it.first->selfItr_);
-                if (achievedStartState(*it.first)){
+                if (achievedStartState(it.first->pnt_)){
                     if(!vBotIsAdded_) {
                         vBotIsAdded_ = true;
                         updatePathNeeded = true;
@@ -461,7 +461,7 @@ void RRTX::rewireNeighbors(Node* &vItr) {
                 it.first->parent_ = vItr->selfItr_;
                 it.first->pathToParent_ = it.second;
                 it.first->parent_->children_.insert(it.first->selfItr_);
-                if (achievedStartState(*it.first)) {
+                if (achievedStartState(it.first->pnt_)) {
                     if(!vBotIsAdded_) {
                         vBotIsAdded_ = true;
                         updatePathNeeded = true;
@@ -635,19 +635,47 @@ void RRTX::initializeTree() {
 }
 
 bool RRTX::search() {
+    auto tmpStartPoint = startPoint_;
+    deque<Point> fixedPath;
+    if(separatePath && finalPath.size()>0){
+        double tmp = 0;
+        int id = 0;
+        while(id+1<finalPath.size() && tmp<=fixedPartOfPathLength){
+            fixedPath.push_back(finalPath[id]);
+            tmp += hypot(finalPath[id+1].x_-finalPath[id].x_, finalPath[id+1].y_-finalPath[id].y_);
+            ++id;
+        }
+        bool flag = false;
+        while(fixedPath.size() > 0){
+//            cout<<hypot(fixedPath[0].x_-startPoint_.x_, fixedPath[0].y_-startPoint_.y_)<<endl;
+//            cout<<fixedPath[0].x_<<" "<<fixedPath[0].y_<<" "<<startPoint_.x_<<" "<<startPoint_.y_<<endl;
+            if(achievedStartState(fixedPath[0])){
+                flag = true;
+                break;
+            }
+            fixedPath.pop_front();
+        }
+        if(flag){
+            startPoint_ = fixedPath.back();
+            vBotIsAdded_ = false;
+            updatePathNeeded = true;
+        }
+//        cout<<fixedPath.size()<<endl;
+//        for(auto it:fixedPath){
+//            cout<<it.x_<<","<<it.y_<<" ";
+//        }cout<<endl;
+    }
     if(!vBotIsAdded_) {
         for (auto &it: nodes_) {
             if(it.lmc_ < INF) {
-                if(achievedStartState(it)){
+                if(achievedStartState(it.pnt_)){
                     vBotIsAdded_ = true;
                     vBot_ = it.selfItr_;
-                    updatePath();
-                    return true;
+                    updatePathNeeded = true;
                 }
             }
         }
     }
-    int cnt = 0;
     auto startTime = high_resolution_clock::now();
     double diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
     while (!vBotIsAdded_ && diffTime < RUNTIME_LIMIT) {
@@ -656,7 +684,6 @@ bool RRTX::search() {
         Node v = Node(randPnt, INF, INF, NULL, NULL);
         Node *vNearest = nearest(v);
         if(vNearest == NULL) {
-            ++cnt;
             diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
             continue;
         }
@@ -667,27 +694,37 @@ bool RRTX::search() {
         if (!mp_.cellIsObstacle(v.pnt_.x_, v.pnt_.y_)) {
             flagAdded = extend(v);
         }
-        ++cnt;
         if (flagAdded) {
             rewireNeighbors(v.selfItr_);
             reduceInconsistency();
-            if(achievedStartState(v)){
+            if(achievedStartState(v.pnt_)){
                 vBotIsAdded_ = true;
                 vBot_ = v.selfItr_;
                 updatePathNeeded = true;
                 if(!guidePathDefined){
-                    updatePath();
+                    updatePath(1);
                     resetTreeFillGuidePath();
                     guidePathDefined = true;
                 }
             }
         }
-        if(updatePathNeeded){
-            updatePath();
-            updatePathNeeded = false;
-        }
         diffTime = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
     }
+    if(updatePathNeeded){
+        updatePath(0.1);
+    }
+    if(separatePath) {
+        reverse(finalPath.begin(), finalPath.end());
+        for (int i = (int) fixedPath.size() - 1; i >= 0; --i) {
+            finalPath.push_back(fixedPath[i]);
+        }
+        reverse(finalPath.begin(), finalPath.end());
+    }
+//    cout<<vBotIsAdded_<<endl;
+//    for(auto it:finalPath){
+//        cout<<it.x_<<","<<it.y_<<" ";
+//    }cout<<endl;
+    startPoint_ = tmpStartPoint;
 //    cerr << "Elapsed time:" << diffTime/1000.0 << "ms" << endl;
     return vBotIsAdded_;
 }
@@ -725,6 +762,14 @@ void RRTX::moveRobot(int shiftDeltaX, int shiftDeltaY, double newTheta) {
 
     shiftX_ += shiftDeltaX;
     shiftY_ += shiftDeltaY;
+
+    if(separatePath){
+        for(auto &it:finalPath){
+            it.x_ -= shiftDeltaX;
+            it.y_ -= shiftDeltaY;
+        }
+    }
+
     shiftTree(-shiftDeltaX, -shiftDeltaY);
     shiftGoal(-shiftDeltaX, -shiftDeltaY);
     if(guidePathDefined){
@@ -748,7 +793,7 @@ void RRTX::moveRobot(int shiftDeltaX, int shiftDeltaY, double newTheta) {
         ++it;
     }
     if (vBotIsAdded_) {
-        if (hypot(vBot_->pnt_.x_ - startPoint_.x_, vBot_->pnt_.y_ - startPoint_.y_) > EPS_DOUBLE) {
+        if(!achievedStartState(vBot_->pnt_)){
             vBotIsAdded_ = false;
             updatePathNeeded = true;
             vBot_ = NULL;
@@ -911,11 +956,11 @@ void RRTX::drawMap(string fileName) {
     out.close();
 }
 
-bool RRTX::achievedStartState(Node v) {
+bool RRTX::achievedStartState(Point p) {
     // Assuming both angles in [0, 2*PI] format.
-    double diffAngle = abs(v.pnt_.theta_ - startPoint_.theta_);
+    double diffAngle = abs(p.theta_ - startPoint_.theta_);
     diffAngle = min(diffAngle, 2*M_PI - diffAngle);
-    return hypot(v.pnt_.x_ - startPoint_.x_, v.pnt_.y_ - startPoint_.y_) < EPS_GOAL
+    return hypot(p.x_ - startPoint_.x_, p.y_ - startPoint_.y_) < EPS_GOAL
             && diffAngle <= EPS_ORIENTATION_ANGLE;
 }
 
@@ -936,25 +981,58 @@ void RRTX::steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, doubl
     }
 }
 
-void RRTX::updatePath() {
+void RRTX::updatePath(double step) {
     updatePathNeeded = false;
     finalPath.clear();
     if (vBotIsAdded_) {
         auto it = vBot_;
-        vector<Point> path;
+        vector<Point> path, pathToSimplify;
+        double tmp = 0;
         while (it->parent_ != it->selfItr_) {
-            path.push_back(Point(it->pnt_.x_, it->pnt_.y_, it->pnt_.theta_));
+//            if(tmp>20){
+                pathToSimplify.push_back(Point(it->pnt_.x_, it->pnt_.y_, it->pnt_.theta_));
+//            }
+//            else {
+//                path.push_back(Point(it->pnt_.x_, it->pnt_.y_, it->pnt_.theta_));
+//            }
+//            tmp += distanceBySteerFunction(it->pnt_, it->parent_->pnt_);
+//            tmp += hypot(it->pnt_.x_-it->parent_->pnt_.x_, it->pnt_.y_-it->parent_->pnt_.y_);
             it = it->parent_;
         }
-        path.push_back(Point(it->pnt_.x_, it->pnt_.y_, it->pnt_.theta_));
-        auto startTime = high_resolution_clock::now();
-        PathSimplifier ps(mp_);
-        ps.simplifyMax(path);
-        double diffTime1 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
-        for(int i=0; i+1<path.size(); ++i){
-            auto it = path[i], it1 = path[i+1];
+//        if(tmp>20){
+            pathToSimplify.push_back(Point(it->pnt_.x_, it->pnt_.y_, it->pnt_.theta_));
+//        }
+//        else {
+//            path.push_back(Point(it->pnt_.x_, it->pnt_.y_, it->pnt_.theta_));
+//        }
+//        auto startTime = high_resolution_clock::now();
+        if(pathToSimplify.size()>1) {
+            PathSimplifier ps(mp_);
+            ps.simplifyMax(pathToSimplify);
+        }
+//        double diffTime1 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
+//        for(int i=0; i+1<path.size(); ++i){
+//            auto it = path[i], it1 = path[i+1];
+//            vector<Point> v;
+//            steerTrajectory(it, it1, v, 1);
+//            for(auto it:v){
+////                assert(mp_.cellIsObstacle(it.x_, it.y_)==0);
+//                finalPath.push_back(it);
+//            }
+//        }
+//        if(pathToSimplify.size()>0){
+//            auto it = path.back(), it1 = pathToSimplify[0];
+//            vector<Point> v;
+//            steerTrajectory(it, it1, v, 1);
+//            for(auto it:v){
+////                assert(mp_.cellIsObstacle(it.x_, it.y_)==0);
+//                finalPath.push_back(it);
+//            }
+//        }
+        for(int i=0; i+1<pathToSimplify.size(); ++i){
+            auto it = pathToSimplify[i], it1 = pathToSimplify[i+1];
             vector<Point> v;
-            steerTrajectory(it, it1, v, 1);
+            steerTrajectory(it, it1, v, step);
             for(auto it:v){
 //                assert(mp_.cellIsObstacle(it.x_, it.y_)==0);
                 finalPath.push_back(it);

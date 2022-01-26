@@ -38,12 +38,14 @@ Point moveRobot(ofstream &out, RRTX rrtx, string fileName){
 
     if(rrtx.vBotIsAdded_){
         if(rrtx.updatePathNeeded){
-            rrtx.updatePath();
+            assert(0);
+            rrtx.updatePath(1);
         }
         vector<Point> path;
         path.push_back(rrtx.finalPath[0]);
         for(int i=0; i+1<rrtx.finalPath.size(); ++i){
-            rrtx.steerTrajectory(rrtx.finalPath[i], rrtx.finalPath[i+1], path, STEP);
+            path.push_back(rrtx.finalPath[i+1]);
+//            rrtx.steerTrajectory(rrtx.finalPath[i], rrtx.finalPath[i+1], path, STEP);
         }
         int tmp = 0;
         double dist = 0;
@@ -56,7 +58,10 @@ Point moveRobot(ofstream &out, RRTX rrtx, string fileName){
         out1.open(fileName.c_str());
         double dis = measureDistraction(oldPath, path, out1);
         out<< dis <<endl;
-        cout<<dis<<endl;
+        cout<<setprecision(5)<<dis<<endl;
+//        if(dis>0.4){
+//            exit(0);
+//        }
         oldPath.clear();
         for(int i=tmp; i<min(tmp+NUMBER_POINTS_TO_COMPARE, (int)path.size()); ++i){
             oldPath.push_back(Point(path[i].x_-(path[tmp].x_-rrtx.startPoint_.x_),path[i].y_-(path[tmp].y_-rrtx.startPoint_.y_), path[i].theta_));
@@ -177,11 +182,11 @@ int main() {
             outShifts.open(shiftFile.c_str());
             outDistraction.open(distractionFile.c_str());
             double shX = 0, shY = 0, shX1 = 0, shY1 = 0;
-            for (int i = 0; i < 150 && rrtx.distanceFunction(rrtx.goal_, rrtx.startPoint_)>EPS_GOAL; ++i) {
+            for (int i = 0; i < 350 && rrtx.distanceFunction(rrtx.goal_, rrtx.startPoint_)>EPS_GOAL; ++i) {
                 cerr<<imageNum<<" "<<cnt<<" "<<i<<"::";
                 auto shift = moveRobot(outDistraction, rrtx, "../output/map" + imageName + "/Dynamics/outSol" + to_string(cnt) + "-" + to_string(i) +
                                                              ".txt");
-                cout<<fixed<<setprecision(3)<<shift.x_<<" "<<shift.y_<<endl;
+//                cout<<fixed<<setprecision(3)<<shift.x_<<" "<<shift.y_<<endl;
                 int shiftMapX, shiftMapY;
                 if(rrtx.startPoint_.x_ > 299){
                     shiftMapX = ceil(shift.x_);
