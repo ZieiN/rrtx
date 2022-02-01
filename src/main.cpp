@@ -68,8 +68,8 @@ Point moveRobot(ofstream &out, RRTX rrtx, string fileName){
         }
         out1.close();
         return Point(path[tmp].x_-rrtx.startPoint_.x_, path[tmp].y_-rrtx.startPoint_.y_, path[tmp].theta_);
-        cout<<"Shifting..."<<endl;
-        cout<<path[tmp].x_<<" "<<path[tmp].y_<<endl;
+        // cout<<"Shifting..."<<endl;
+        // cout<<path[tmp].x_<<" "<<path[tmp].y_<<endl;
     }
     else{
         ofstream out1;
@@ -82,14 +82,16 @@ Point moveRobot(ofstream &out, RRTX rrtx, string fileName){
 
 
 Map addDynamicObstacles(RRTX &rrtx, string fileName, int shift, double shX, double shY) {
-    int dx[8] = {1, 1, 1, -1, -1, -1, 0, 0},
-            dy[8] = {0, 1, -1, 0, 1, -1, 1, -1};
-    srand(0);
+//    int dx[8] = {1, 1, 1, -1, -1, -1, 0, 0},
+//            dy[8] = {0, 1, -1, 0, 1, -1, 1, -1};
+        int dx[4] = {0, 0, 1, -1}, dy[4] = {1, -1, 0, 0};
+
+    srand(1);
     vector<pair<int, int>> v;
     vector<int> sz;
-    for(int i=0; i<100; ++i){
+    for(int i=0; i<10000; ++i){
         v.emplace_back(rand()%rrtx.mp_.getWidth(), rand()%rrtx.mp_.getHeight());
-        sz.emplace_back(rand()%20);
+        sz.emplace_back(rand()%20+2);
     }
     ifstream in;
     in.open(fileName.c_str());
@@ -103,15 +105,16 @@ Map addDynamicObstacles(RRTX &rrtx, string fileName, int shift, double shX, doub
         }
     }
     in.close();
-    for(int i=0; i<50; ++i){
+    for(int i=0; i<200; ++i){
         int id = i%8;
         int x = v[i].first + dx[id]*shift, y = v[i].second+dy[id]*shift;
         bool fl = true;
         for(int j=-sz[i]/2; j<sz[i]/2; ++j){
             for(int k=-sz[i]/2; k<sz[i]/2; ++k){
-                if(x+j-shX == rrtx.startPoint_.x_ && y+k-shY==rrtx.startPoint_.y_){
-                    fl = false;
-                    break;
+//                if(x+j-shX == rrtx.startPoint_.x_ && y+k-shY==rrtx.startPoint_.y_){
+               if((abs(x+j-shX - rrtx.goal_.x_)<=2 && abs(y+k-shY-rrtx.goal_.y_)<=2)){
+                   fl = false;
+                   break;
                 }
             }
         }
@@ -162,7 +165,7 @@ Map addDynamicObstacles(RRTX &rrtx, string fileName, int shift, double shX, doub
 
 
 int main() {
-    for(int imageNum = 1; imageNum<=3; ++imageNum) {
+    for(int imageNum = 2; imageNum<=3; ++imageNum) {
         string imageName = to_string(imageNum);
         string inputsFile = "../input/map" + imageName + "/inputs.txt";
         ifstream in;
@@ -173,6 +176,7 @@ int main() {
         double stx, sty, sto, ndx, ndy, ndo;
         int cnt = 0;
         while (in >> stx >> sty >> sto >> ndx >> ndy >> ndo) {
+          if(cnt<10){++cnt;continue;}
             Point start = Point(stx, sty, sto);
             Point goal = Point(ndx, ndy, ndo);
             RRTX rrtx(start, goal);
@@ -182,7 +186,7 @@ int main() {
             outShifts.open(shiftFile.c_str());
             outDistraction.open(distractionFile.c_str());
             double shX = 0, shY = 0, shX1 = 0, shY1 = 0;
-            for (int i = 0; i < 350 && rrtx.distanceFunction(rrtx.goal_, rrtx.startPoint_)>EPS_GOAL; ++i) {
+            for (int i = 0; i < 450 && rrtx.distanceFunction(rrtx.goal_, rrtx.startPoint_)>EPS_GOAL; ++i) {
                 cerr<<imageNum<<" "<<cnt<<" "<<i<<"::";
                 auto shift = moveRobot(outDistraction, rrtx, "../output/map" + imageName + "/Dynamics/outSol" + to_string(cnt) + "-" + to_string(i) +
                                                              ".txt");
@@ -217,7 +221,7 @@ int main() {
                 rrtx.search();
                 auto diffTime2 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
                 outTime <<diffTime1<<" "<< diffTime2 << endl;
-                cout<<fixed<<setprecision(3) <<diffTime1/1000.0<<" "<< diffTime2/1000.0 << " n_nodes=" <<rrtx.nodes_.size()<<",n_edges="<<rrtx.edges.size()<< endl;
+                // cout<<fixed<<setprecision(3) <<diffTime1/1000.0<<" "<< diffTime2/1000.0 << " n_nodes=" <<rrtx.nodes_.size()<<",n_edges="<<rrtx.edges.size()<< endl;
                 rrtx.drawTree("../output/map" + imageName + "/Dynamics/outTree" + to_string(cnt) + "-" + to_string(i) +
                               ".txt");
 //                rrtx.drawSolution(
@@ -229,10 +233,10 @@ int main() {
             }
             outShifts.close();
             outDistraction.close();
-//            break;
+           break;
             ++cnt;
         }
-//        break;
+       break;
     }
     return 0;
 }

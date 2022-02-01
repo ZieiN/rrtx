@@ -74,7 +74,6 @@ public:
     bool flagPlanNearOldPath;
     vector<Point> guidePath;
     vector<Point> finalPath;
-//    vector<bool> isValidEdge;
     map<int, map<int, set<_List_iterator<pair<pair<Node *, Node *>, pair<DubinsPath, pair<bool, int>>>>>>> passedEdges;
     list<pair<pair<Node *, Node *>, pair<DubinsPath, pair<bool, int>>>> edges; // <from, to>, <dubinsPath, <R or 0, valid/invalid>>
     bool updatePathNeeded;

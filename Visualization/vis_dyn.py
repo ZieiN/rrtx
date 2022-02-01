@@ -80,20 +80,20 @@ for imageNm in range(2,4):
             ff = []
             gg = []
             cnt = 0
-            with open('../output/map' + imageNum + '/Dynamics/outTree' + str(id) + '-' + str(id1)+'.txt') as f:
-                for line in f:
-                    if(cnt%1==0):
-                        a = [float(i) for i in line.split()]
-                        if len(a) == 4:
-                            b.append(a[0])
-                            c.append(a[1])
-                            d.append(a[2])
-                            e.append(a[3])
-                        else:
-                            ff.append(a[0])
-                            gg.append(a[1])
-                    cnt += 1
-            f.close()
+            # with open('../output/map' + imageNum + '/Dynamics/outTree' + str(id) + '-' + str(id1)+'.txt') as f:
+            #     for line in f:
+            #         if(cnt%1==0):
+            #             a = [float(i) for i in line.split()]
+            #             if len(a) == 4:
+            #                 b.append(a[0])
+            #                 c.append(a[1])
+            #                 d.append(a[2])
+            #                 e.append(a[3])
+            #             else:
+            #                 ff.append(a[0])
+            #                 gg.append(a[1])
+            #         cnt += 1
+            # f.close()
 
             # pl.plot(b, c, 'b.')
             # pl.plot(d, e, 'b.')

@@ -55,9 +55,9 @@ Point RRTX::randomNode() {
         return guidePath[(int)(guidePath.size())-1-counterAddPath-10];
     }
     random_device rd;
-//    static int cnt = 0;
-//    mt19937 mt(cnt++);
-    mt19937 mt(rd());
+   static int cnt = 0;
+   mt19937 mt(cnt++);
+    // mt19937 mt(rd());
     uniform_real_distribution<double> randForStartPoint(0, 1);
     if (randForStartPoint(mt) < probability_SAMPLE_START_NODE) {
         return startPoint_;
@@ -637,18 +637,16 @@ void RRTX::initializeTree() {
 bool RRTX::search() {
     auto tmpStartPoint = startPoint_;
     deque<Point> fixedPath;
-    if(separatePath && finalPath.size()>0){
+    if(SEPARATE_PATH && finalPath.size()>0){
         double tmp = 0;
         int id = 0;
-        while(id+1<finalPath.size() && tmp<=fixedPartOfPathLength){
+        while(id+1<finalPath.size() && tmp<=LENGTH_OF_FIXED_PART_OF_PATH){
             fixedPath.push_back(finalPath[id]);
             tmp += hypot(finalPath[id+1].x_-finalPath[id].x_, finalPath[id+1].y_-finalPath[id].y_);
             ++id;
         }
         bool flag = false;
         while(fixedPath.size() > 0){
-//            cout<<hypot(fixedPath[0].x_-startPoint_.x_, fixedPath[0].y_-startPoint_.y_)<<endl;
-//            cout<<fixedPath[0].x_<<" "<<fixedPath[0].y_<<" "<<startPoint_.x_<<" "<<startPoint_.y_<<endl;
             if(achievedStartState(fixedPath[0])){
                 flag = true;
                 break;
@@ -660,10 +658,6 @@ bool RRTX::search() {
             vBotIsAdded_ = false;
             updatePathNeeded = true;
         }
-//        cout<<fixedPath.size()<<endl;
-//        for(auto it:fixedPath){
-//            cout<<it.x_<<","<<it.y_<<" ";
-//        }cout<<endl;
     }
     if(!vBotIsAdded_) {
         for (auto &it: nodes_) {
@@ -713,19 +707,14 @@ bool RRTX::search() {
     if(updatePathNeeded){
         updatePath(0.1);
     }
-    if(separatePath) {
+    if(SEPARATE_PATH) {
         reverse(finalPath.begin(), finalPath.end());
         for (int i = (int) fixedPath.size() - 1; i >= 0; --i) {
             finalPath.push_back(fixedPath[i]);
         }
         reverse(finalPath.begin(), finalPath.end());
     }
-//    cout<<vBotIsAdded_<<endl;
-//    for(auto it:finalPath){
-//        cout<<it.x_<<","<<it.y_<<" ";
-//    }cout<<endl;
     startPoint_ = tmpStartPoint;
-//    cerr << "Elapsed time:" << diffTime/1000.0 << "ms" << endl;
     return vBotIsAdded_;
 }
 
@@ -763,7 +752,7 @@ void RRTX::moveRobot(int shiftDeltaX, int shiftDeltaY, double newTheta) {
     shiftX_ += shiftDeltaX;
     shiftY_ += shiftDeltaY;
 
-    if(separatePath){
+    if(SEPARATE_PATH){
         for(auto &it:finalPath){
             it.x_ -= shiftDeltaX;
             it.y_ -= shiftDeltaY;

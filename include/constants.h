@@ -32,8 +32,8 @@ const int DENSITY_THRESHOLD = 30;
 const int MAX_NUM_NEIGHNORS = 20;
 const int RUNTIME_LIMIT = 100000; // runtime for sampling in microseconds
 
-const bool separatePath = true;
-const double fixedPartOfPathLength = 20;
+const bool SEPARATE_PATH = true;
+const double LENGTH_OF_FIXED_PART_OF_PATH = 20;
 
 // Dubins
 const double VELOCITY = 5;
