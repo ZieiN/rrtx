@@ -5,11 +5,6 @@
 using namespace std;
 using namespace std::chrono;
 
-// coefficient decreases by the equation c_i =  (SIGMA)^i where SIGMA < 1
-const double SIGMA = 0.9;
-const double STEP = 0.1; // length of each step
-const int NUMBER_POINTS_TO_COMPARE = 200; //  total compare length = NUMBER_POINTS_TO_COMPARE * STEP
-
 double measureDistraction(vector<Point> &oldPath, vector<Point> &path, ofstream &out){
     double ans = 0;
     int sz = min(oldPath.size(), path.size());
@@ -34,13 +29,9 @@ double measureDistraction(vector<Point> &oldPath, vector<Point> &path, ofstream 
     return ans/(double)(sz);
 }
 vector<Point> oldPath;
-Point moveRobot(ofstream &out, RRTX rrtx, string fileName){
+Point moveRobot(ofstream &out, RRTX &rrtx, string fileName){
 
-    if(rrtx.vBotIsAdded_){
-        if(rrtx.updatePathNeeded){
-            assert(0);
-            rrtx.updatePath(1);
-        }
+    if(rrtx.finalPath.size() > 1){
         vector<Point> path;
         path.push_back(rrtx.finalPath[0]);
         for(int i=0; i+1<rrtx.finalPath.size(); ++i){
@@ -58,7 +49,7 @@ Point moveRobot(ofstream &out, RRTX rrtx, string fileName){
         out1.open(fileName.c_str());
         double dis = measureDistraction(oldPath, path, out1);
         out<< dis <<endl;
-        cout<<setprecision(5)<<dis<<endl;
+        cout<<setprecision(5)<<dis<<" "<<rrtx.measureDistance()<<endl;
 //        if(dis>0.4){
 //            exit(0);
 //        }
@@ -81,12 +72,12 @@ Point moveRobot(ofstream &out, RRTX rrtx, string fileName){
 }
 
 
-Map addDynamicObstacles(RRTX &rrtx, string fileName, int shift, double shX, double shY) {
+Map addDynamicObstacles(RRTX &rrtx, string fileName, int shift, double shX, double shY, string outMap) {
 //    int dx[8] = {1, 1, 1, -1, -1, -1, 0, 0},
 //            dy[8] = {0, 1, -1, 0, 1, -1, 1, -1};
         int dx[4] = {0, 0, 1, -1}, dy[4] = {1, -1, 0, 0};
 
-    srand(1);
+    srand(0);
     vector<pair<int, int>> v;
     vector<int> sz;
     for(int i=0; i<10000; ++i){
@@ -105,67 +96,124 @@ Map addDynamicObstacles(RRTX &rrtx, string fileName, int shift, double shX, doub
         }
     }
     in.close();
-    for(int i=0; i<200; ++i){
-        int id = i%8;
-        int x = v[i].first + dx[id]*shift, y = v[i].second+dy[id]*shift;
-        bool fl = true;
-        for(int j=-sz[i]/2; j<sz[i]/2; ++j){
-            for(int k=-sz[i]/2; k<sz[i]/2; ++k){
-//                if(x+j-shX == rrtx.startPoint_.x_ && y+k-shY==rrtx.startPoint_.y_){
-               if((abs(x+j-shX - rrtx.goal_.x_)<=2 && abs(y+k-shY-rrtx.goal_.y_)<=2)){
-                   fl = false;
-                   break;
-                }
-            }
-        }
-        if(fl) {
-            for (int j = -sz[i] / 2; j < sz[i] / 2; ++j) {
-                for (int k = -sz[i] / 2; k < sz[i] / 2; ++k) {
-                    if (rrtx.mp_.isIn(x + j, y + k))
-                        mp2.setCellXY(x + j, y + k, 1);
+    for(int shft = shift; shft<shift+2; ++shft) {
+        for (int i = 0; i < 20; ++i) {
+            int id = i % 4;
+            int x = v[i].first + dx[id] * shft, y = v[i].second + dy[id] * shft;
+            bool fl = true;
+//            for (int j = -sz[i] / 2; j < sz[i] / 2; ++j) {
+//                for (int k = -sz[i] / 2; k < sz[i] / 2; ++k) {
+////                if(x+j-shX == rrtx.startPoint_.x_ && y+k-shY==rrtx.startPoint_.y_){
+//                    if ((abs(x + j - shX - rrtx.goal_.x_) <= 2 && abs(y + k - shY - rrtx.goal_.y_) <= 2)) {
+//                        fl = false;
+//                        break;
+//                    }
+//                }
+//            }
+            if (fl) {
+                for (int j = -sz[i] / 2; j < sz[i] / 2; ++j) {
+                    for (int k = -sz[i] / 2; k < sz[i] / 2; ++k) {
+                        if (rrtx.mp_.isIn(x + j, y + k))
+                            mp2.setCellXY(x + j, y + k, 1);
+                    }
                 }
             }
         }
     }
     int shiftI = -shY, shiftJ = shX;
-    for(int i=0; i<mp2.getHeight(); ++i){
-        for(int j=0; j<mp2.getWidth(); ++j){
-            if(mp2.isIn(i+shiftI, j+shiftJ) && mp2.cellIsObstacleIJ(i+shiftI, j+shiftJ)){
+    for (int i = 0; i < mp2.getHeight(); ++i) {
+        for (int j = 0; j < mp2.getWidth(); ++j) {
+            if (mp2.isIn(i + shiftI, j + shiftJ) && mp2.cellIsObstacleIJ(i + shiftI, j + shiftJ)) {
                 mp.setCell(i, j, 1);
-            }
-            else{
+            } else {
                 mp.setCell(i, j, 0);
             }
         }
     }
-//    for(int y=0; y<rrtx.mp_.getHeight(); ++y){
-//        for(int x=0; x<rrtx.mp_.getWidth(); ++x){
-//            double xx = x+shX;
-//            double yy = y+shY;
-//            bool ans = true;
-//            for(double k=-0.5; k<=0.5; ++k){
-//                for(double l=-0.5; l<=0.5; ++l){
-//                    ans = (ans && mp2.isInXY(xx+k, yy+l) && mp2.cellIsObstacle(xx+k, yy+l));
-//                }
-//            }
-//            if(ans)
-////            if(mp2.isIn(x, y) && mp2.cellIsObstacle(x, y))
-//                rrtx.mp_.setCellXY(x, y, 1);
-//            else
-//                rrtx.mp_.setCellXY(x, y, 0);
-//        }
-//    }
-//    mp_ = mp2
-//    rrtx.checkForDisappearedObstacles();
-//    rrtx.checkForAppearedObstacles();
-//    rrtx.propagateDescendants();
-//    rrtx.reduceInconsistency();
+    ofstream out;
+    out.open(outMap.c_str());
+    out<<mp.getHeight()<<" "<<mp.getWidth()<<endl;
+    for(int i=0; i<mp.getHeight(); ++i){
+        for(int j=0; j<mp.getWidth(); ++j){
+            out<<mp.getValue(i, j)<<" ";
+        }
+        out<<endl;
+    }
+    out.close();
     return mp;
 }
 
 
+void drawMap(RRTX &rrtx, string fileMap, string outMap, int shift, double shX, double shY) {
+    int dx[4] = {0, 0, 1, -1}, dy[4] = {1, -1, 0, 0};
+
+    srand(0);
+    vector<pair<int, int>> v;
+    vector<int> sz;
+    for(int i=0; i<10000; ++i){
+        v.emplace_back(rand()%rrtx.mp_.getWidth(), rand()%rrtx.mp_.getHeight());
+        sz.emplace_back(rand()%20+2);
+    }
+    ifstream in;
+    in.open(fileMap.c_str());
+    int w, h, x;
+    in>>h>>w;
+    Map mp2(h, w), mp(h, w);
+    for (int i = 0; i < h; ++i) {
+        for (int j = 0; j < w; ++j) {
+            in >> x;
+            mp2.setCell(i, j, x);
+        }
+    }
+    in.close();
+    for(int shft = shift; shft<shift+1; ++shft) {
+        for (int i = 0; i < 20; ++i) {
+            int id = i % 4;
+            int x = v[i].first + dx[id] * shft, y = v[i].second + dy[id] * shft;
+            bool fl = true;
+//            for (int j = -sz[i] / 2; j < sz[i] / 2; ++j) {
+//                for (int k = -sz[i] / 2; k < sz[i] / 2; ++k) {
+////                if(x+j-shX == rrtx.startPoint_.x_ && y+k-shY==rrtx.startPoint_.y_){
+//                    if ((abs(x + j - shX - rrtx.goal_.x_) <= 2 && abs(y + k - shY - rrtx.goal_.y_) <= 2)) {
+//                        fl = false;
+//                        break;
+//                    }
+//                }
+//            }
+            if (fl) {
+                for (int j = -sz[i] / 2; j < sz[i] / 2; ++j) {
+                    for (int k = -sz[i] / 2; k < sz[i] / 2; ++k) {
+                        if (rrtx.mp_.isIn(x + j, y + k))
+                            mp2.setCellXY(x + j, y + k, 1);
+                    }
+                }
+            }
+        }
+    }
+    int shiftI = -shY, shiftJ = shX;
+    for (int i = 0; i < mp2.getHeight(); ++i) {
+        for (int j = 0; j < mp2.getWidth(); ++j) {
+            if (mp2.isIn(i + shiftI, j + shiftJ) && mp2.cellIsObstacleIJ(i + shiftI, j + shiftJ)) {
+                mp.setCell(i, j, 1);
+            } else {
+                mp.setCell(i, j, 0);
+            }
+        }
+    }
+    ofstream out;
+    out.open(outMap.c_str());
+    out<<mp.getHeight()<<" "<<mp.getWidth()<<endl;
+    for(int i=0; i<mp.getHeight(); ++i){
+        for(int j=0; j<mp.getWidth(); ++j){
+            out<<mp.getValue(i, j)<<" ";
+        }
+        out<<endl;
+    }
+    out.close();
+}
+
 int main() {
-    for(int imageNum = 2; imageNum<=3; ++imageNum) {
+    for(int imageNum = 1; imageNum<=3; ++imageNum) {
         string imageName = to_string(imageNum);
         string inputsFile = "../input/map" + imageName + "/inputs.txt";
         ifstream in;
@@ -176,7 +224,7 @@ int main() {
         double stx, sty, sto, ndx, ndy, ndo;
         int cnt = 0;
         while (in >> stx >> sty >> sto >> ndx >> ndy >> ndo) {
-          if(cnt<10){++cnt;continue;}
+//          if(cnt<10){++cnt;continue;}
             Point start = Point(stx, sty, sto);
             Point goal = Point(ndx, ndy, ndo);
             RRTX rrtx(start, goal);
@@ -206,7 +254,8 @@ int main() {
                 }
                 shX += shiftMapX; shY += shiftMapY;
                 shX1 += shift.x_-shiftMapX; shY1 += shift.y_-shiftMapY;
-                auto mp = addDynamicObstacles(rrtx, "../input/map" + imageName + "/image.txt", i, shX, shY);
+                auto mp = addDynamicObstacles(rrtx, "../input/map" + imageName + "/image.txt", i, shX, shY, "../output/map" + imageName + "/Dynamics/outMap" + to_string(cnt) + "-" + to_string(i) +
+                                                                                                            ".txt");
                 auto startTime = high_resolution_clock::now();
                 rrtx.startPoint_.x_ += shift.x_-shiftMapX; rrtx.startPoint_.y_ += shift.y_-shiftMapY;
                 for(auto &it:oldPath){
@@ -218,22 +267,26 @@ int main() {
                 outShifts<<shX<<" "<<shY<<" "<<shX1<<" "<<shY1<<endl;
                 double diffTime1 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
                 startTime = high_resolution_clock::now();
-                rrtx.search();
+                if(!rrtx.isOldPathValid()) {
+                    rrtx.search();
+                }
                 auto diffTime2 = duration_cast<microseconds>(high_resolution_clock::now() - startTime).count();
                 outTime <<diffTime1<<" "<< diffTime2 << endl;
-                // cout<<fixed<<setprecision(3) <<diffTime1/1000.0<<" "<< diffTime2/1000.0 << " n_nodes=" <<rrtx.nodes_.size()<<",n_edges="<<rrtx.edges.size()<< endl;
+                cout<<fixed<<setprecision(3) <<diffTime1/1000.0<<" "<< diffTime2/1000.0 << " n_nodes=" <<rrtx.nodes_.size()<<",n_edges="<<rrtx.edges.size()<< endl;
                 rrtx.drawTree("../output/map" + imageName + "/Dynamics/outTree" + to_string(cnt) + "-" + to_string(i) +
                               ".txt");
+                drawMap(rrtx, "../input/map" + imageName + "/image.txt", "../output/map" + imageName + "/Dynamics/outMap" + to_string(cnt) + "-" + to_string(i) +
+                             "-.txt", i, shX, shY);
 //                rrtx.drawSolution(
 //                        "../output/map" + imageName + "/Dynamics/outSol" + to_string(cnt) + "-" + to_string(i) +
 //                        ".txt");
-                rrtx.drawMap("../output/map" + imageName + "/Dynamics/outMap" + to_string(cnt) + "-" + to_string(i) +
-                             ".txt");
+//                rrtx.drawMap("../output/map" + imageName + "/Dynamics/outMap" + to_string(cnt) + "-" + to_string(i) +
+//                             ".txt");
 
             }
             outShifts.close();
             outDistraction.close();
-           break;
+//           break;
             ++cnt;
         }
        break;

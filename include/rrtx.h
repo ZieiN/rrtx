@@ -74,12 +74,13 @@ public:
     bool flagPlanNearOldPath;
     vector<Point> guidePath;
     vector<Point> finalPath;
+    vector<Point> oldPath;
     map<int, map<int, set<_List_iterator<pair<pair<Node *, Node *>, pair<DubinsPath, pair<bool, int>>>>>>> passedEdges;
     list<pair<pair<Node *, Node *>, pair<DubinsPath, pair<bool, int>>>> edges; // <from, to>, <dubinsPath, <R or 0, valid/invalid>>
     bool updatePathNeeded;
     bool guidePathDefined;
     int counterAddPath;
-    int shiftX_, shiftY_;
+    double shiftX_, shiftY_;
 
 
 
@@ -90,10 +91,13 @@ public:
     bool achievedStartState(Point);
     bool checkDubinsPath(const DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy, double t1, double t2);
     bool checkDubinsPath(const DubinsPath &dubinsPath, Point &p0, Point &p1);
+    bool checkDubinsPath(Point &p0, Point &p1);
     bool extend(Node &v);
     bool search();
+    bool isOldPathValid();
 
     double distanceBySteerFunction(Point &v1, Point &v2);
+    double measureDistance();
 
     list<pair<Node *, DubinsPath>> near(Node &v);
 
@@ -114,14 +118,14 @@ public:
     void getLatticePointsOnThePath(DubinsPath &dp, Point *p0, double stx, double sty, double ndx, double ndy, double t1, double t2, set<pair<int, int>> &pathPoints);
     void initializeTree();
     void moveObstacles(string fileName, int shift);
-    void moveRobot(int shiftDeltaX, int shiftDeltaY, double newTheta);
+    void moveRobot(double shiftDeltaX, double shiftDeltaY, double newTheta);
     void propagateDescendants();
     void reduceInconsistency();
     void resetTreeFillGuidePath();
     void rewireNeighbors(Node *&vItr);
     void saturate(Node &v, Node *&vNearest);
-    void shiftGoal(int shiftDeltaX, int shiftDeltaY);
-    void shiftTree(int, int);
+    void shiftGoal(double shiftDeltaX, double shiftDeltaY);
+    void shiftTree(double, double);
     void shrinkingBallRadius();
     void steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, DubinsPath &dubinsPath, double step);
     void steerTrajectory(Point v1, Point &v2, vector<Point> &trajectory, double step);

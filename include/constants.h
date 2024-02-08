@@ -14,7 +14,7 @@ using namespace  std;
 //string testFileName = "1";
 //const double M_PI = 3.141592653;
 const double INF = 1e9;
-const double EPS_GOAL = 0.01;
+const double EPS_GOAL = 1;
 const int MX_HEIGHT = 600;
 const int MX_WIDTH = 600;
 const double DELTA = 60;
@@ -42,5 +42,13 @@ const double WHEEL_BASE = 3.25;
 const double twopi = 2. * M_PI;
 const double DUBINS_EPS = 1e-6;
 const double DUBINS_ZERO = -1e-7;
+
+// Measure the distance between two paths:
+// coefficient decreases by the equation c_i =  (SIGMA)^i where SIGMA < 1
+const double SIGMA = 0.9;
+const double STEP = 0.1; // length of each step
+const int NUMBER_POINTS_TO_COMPARE = 200; //  total compare length = NUMBER_POINTS_TO_COMPARE * STEP
+
+
 
 #endif //RRTX_CONSTANTS

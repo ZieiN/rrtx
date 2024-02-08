@@ -1,5 +1,5 @@
 project(RRTx)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O2 -unroll-loops -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O2 -Wall -Wextra")
 
 set(SOURCES
         src/rrtx.cpp

@@ -5,6 +5,8 @@
 #ifndef RRTX_POINT_H
 #define RRTX_POINT_H
 
+#include <ostream>
+
 class Point {
 public:
     Point() {
@@ -52,6 +54,7 @@ public:
         y_ = y;
     }
     friend bool operator < (Point a, Point b);
+    friend std::ostream& operator<<(std::ostream& os, const Point& dt);
 };
 
 #endif //RRTX_POINT_H
